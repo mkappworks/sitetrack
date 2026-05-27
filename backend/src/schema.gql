@@ -7,6 +7,12 @@ type AuthPayload {
   user: User!
 }
 
+input CreateEquipmentInput {
+  description: String
+  managerId: ID
+  name: String!
+}
+
 input CreateMaterialInput {
   name: String!
   projectId: String!
@@ -37,6 +43,15 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Equipment {
+  createdAt: DateTime!
+  description: String
+  id: ID!
+  manager: User
+  name: String!
+  updatedAt: DateTime!
+}
+
 input LoginInput {
   email: String!
   password: String!
@@ -62,6 +77,7 @@ enum MaterialStatus {
 }
 
 type Mutation {
+  createEquipment(input: CreateEquipmentInput!): Equipment!
   createMaterial(input: CreateMaterialInput!): Material!
   createProject(input: CreateProjectInput!): Project!
 
@@ -70,11 +86,13 @@ type Mutation {
 
   """Login with email + password"""
   login(input: LoginInput!): AuthPayload!
+  removeEquipment(id: ID!): Boolean!
   removeMaterial(id: ID!): Boolean!
   removeProject(id: ID!): Boolean!
 
   """Delete a user — Admin only"""
   removeUser(id: ID!): Boolean!
+  updateEquipment(id: ID!, input: UpdateEquipmentInput!): Equipment!
   updateMaterial(id: ID!, input: UpdateMaterialInput!): Material!
   updateProject(id: ID!, input: UpdateProjectInput!): Project!
 
@@ -105,6 +123,8 @@ enum ProjectStatus {
 }
 
 type Query {
+  equipment(id: ID!): Equipment!
+  equipments: [Equipment!]!
   materialsByProject(projectId: ID!): [Material!]!
 
   """The currently authenticated user"""
@@ -122,6 +142,12 @@ type Query {
 type Subscription {
   """Real-time updates when any project is modified"""
   projectUpdated: Project!
+}
+
+input UpdateEquipmentInput {
+  description: String
+  managerId: ID
+  name: String
 }
 
 input UpdateMaterialInput {
