@@ -1,0 +1,164 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type AuthPayload {
+  accessToken: String!
+  user: User!
+}
+
+input CreateMaterialInput {
+  name: String!
+  projectId: String!
+  quantity: Float!
+  status: MaterialStatus
+  unit: String!
+}
+
+input CreateProjectInput {
+  description: String
+  endDate: String
+  location: String
+  managerId: ID
+  name: String!
+  startDate: String
+  status: ProjectStatus
+}
+
+input CreateUserInput {
+  email: String!
+  name: String!
+  password: String!
+  role: UserRole
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Material {
+  createdAt: DateTime!
+  id: ID!
+  name: String!
+  project: Project!
+  quantity: Float!
+  status: MaterialStatus!
+  unit: String!
+  updatedAt: DateTime!
+}
+
+enum MaterialStatus {
+  IN_TRANSIT
+  ON_SITE
+  ORDERED
+  RETURNED
+  USED
+}
+
+type Mutation {
+  createMaterial(input: CreateMaterialInput!): Material!
+  createProject(input: CreateProjectInput!): Project!
+
+  """Create a new user — Admin only"""
+  createUser(input: CreateUserInput!): User!
+
+  """Login with email + password"""
+  login(input: LoginInput!): AuthPayload!
+
+  """Register a new account"""
+  register(input: CreateUserInput!): AuthPayload!
+  removeMaterial(id: ID!): Boolean!
+  removeProject(id: ID!): Boolean!
+
+  """Delete a user — Admin only"""
+  removeUser(id: ID!): Boolean!
+  updateMaterial(id: ID!, input: UpdateMaterialInput!): Material!
+  updateProject(id: ID!, input: UpdateProjectInput!): Project!
+
+  """Update a user — Admin only"""
+  updateUser(id: ID!, input: UpdateUserInput!): User!
+}
+
+type Project {
+  createdAt: DateTime!
+  description: String
+  endDate: DateTime
+  id: ID!
+  location: String
+  manager: User
+  materials: [Material!]
+  name: String!
+  startDate: DateTime
+  status: ProjectStatus!
+  updatedAt: DateTime!
+}
+
+enum ProjectStatus {
+  ACTIVE
+  CANCELLED
+  COMPLETED
+  ON_HOLD
+  PLANNING
+}
+
+type Query {
+  materialsByProject(projectId: ID!): [Material!]!
+
+  """The currently authenticated user"""
+  me: User!
+  project(id: ID!): Project!
+  projects: [Project!]!
+
+  """Get a specific user by ID"""
+  user(id: ID!): User!
+
+  """List all users — Admin only"""
+  users: [User!]!
+}
+
+type Subscription {
+  """Real-time updates when any project is modified"""
+  projectUpdated: Project!
+}
+
+input UpdateMaterialInput {
+  name: String
+  quantity: Float
+  status: MaterialStatus
+  unit: String
+}
+
+input UpdateProjectInput {
+  description: String
+  location: String
+  managerId: ID
+  name: String
+  status: ProjectStatus
+}
+
+input UpdateUserInput {
+  name: String
+  role: UserRole
+}
+
+type User {
+  createdAt: DateTime!
+  email: String!
+  id: ID!
+  name: String!
+  projects: [Project!]
+  role: UserRole!
+  updatedAt: DateTime!
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  VIEWER
+}
