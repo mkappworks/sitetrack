@@ -1,0 +1,195 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+
+jobs:
+  # ── Job 1: Lint & Test ──────────────────────────────────────────────────────
+  test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sitetrack_test
+          POSTGRES_USER: sitetrack
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Lint backend
+        working-directory: backend
+        run: npm run lint
+
+      - name: Run backend unit tests with coverage
+        working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: sitetrack_test
+          DB_USER: sitetrack
+          DB_PASSWORD: test_password
+          JWT_SECRET: test-secret-that-is-long-enough-for-joi
+        run: npm run test:cov
+
+      - name: Run e2e tests
+        working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: sitetrack_test
+          DB_USER: sitetrack
+          DB_PASSWORD: test_password
+          JWT_SECRET: test-secret-that-is-long-enough-for-joi
+          NODE_ENV: test
+        run: npm run test:e2e
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
+
+  # ── Job 2: Build & Push Docker images ──────────────────────────────────────
+  build:
+    name: Build and push images
+    runs-on: ubuntu-latest
+    needs: test  # Only runs if test job passes
+    # Only build images on pushes to main, not on pull requests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write  # Required to push to GHCR
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          # Tag with both the commit SHA (immutable) and 'latest'
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/sitetrack-backend:latest
+            ${{ env.IMAGE_PREFIX }}/sitetrack-backend:${{ github.sha }}
+          # Cache layers between runs using GitHub Actions cache
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/sitetrack-frontend:latest
+            ${{ env.IMAGE_PREFIX }}/sitetrack-frontend:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_GRAPHQL_URL=https://sitetrack.local/graphql
+            NEXT_PUBLIC_GRAPHQL_WS_URL=wss://sitetrack.local/graphql
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Job 3: Deploy to Kubernetes ────────────────────────────────────────────
+  deploy:
+    name: Deploy to cluster
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production  # Requires manual approval in GitHub settings
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure kubectl
+        # KUBE_CONFIG is a base64-encoded kubeconfig stored in GitHub Secrets
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+
+      - name: Apply namespace and config
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/postgres/secret.yaml
+          kubectl apply -f k8s/postgres/statefulset.yaml
+          kubectl apply -f k8s/postgres/service.yaml
+          kubectl apply -f k8s/backend/configmap.yaml
+          kubectl apply -f k8s/backend/secret.yaml
+
+      # Run migrations before updating the Deployment
+      - name: Run database migrations
+        run: |
+          # Replace the image tag in the Job manifest with the current commit SHA
+          sed -i "s|:latest|:${{ github.sha }}|g" k8s/migration-job.yaml
+          # Delete old job if it exists (Jobs are immutable)
+          kubectl delete job db-migrate -n sitetrack --ignore-not-found
+          kubectl apply -f k8s/migration-job.yaml
+          # Wait up to 2 minutes for migrations to complete before deploying
+          kubectl wait --for=condition=complete job/db-migrate -n sitetrack --timeout=120s
+
+      - name: Deploy backend
+        run: |
+          # Pin to the exact commit SHA — not :latest — for reproducible deploys
+          sed -i "s|:latest|:${{ github.sha }}|g" k8s/backend/deployment.yaml
+          kubectl apply -f k8s/backend/deployment.yaml
+          kubectl apply -f k8s/backend/service.yaml
+          kubectl rollout status deployment/backend -n sitetrack --timeout=300s
+
+      - name: Deploy frontend
+        run: |
+          sed -i "s|:latest|:${{ github.sha }}|g" k8s/frontend/deployment.yaml
+          kubectl apply -f k8s/frontend/deployment.yaml
+          kubectl apply -f k8s/ingress.yaml
+          kubectl rollout status deployment/frontend -n sitetrack --timeout=300s
+
+      - name: Verify deployment
+        run: |
+          kubectl get pods -n sitetrack
+          kubectl get services -n sitetrack
+          kubectl get ingress -n sitetrack
