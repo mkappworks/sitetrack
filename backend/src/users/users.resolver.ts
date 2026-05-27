@@ -1,0 +1,61 @@
+import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
+import { UseGuards } from '@nestjs/common';
+import { UsersService } from './users.service';
+import { User, UserRole } from './entities/user.entity';
+import { CreateUserInput, UpdateUserInput } from './dto/user.input';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+
+@Resolver(() => User)
+export class UsersResolver {
+  constructor(private readonly usersService: UsersService) {}
+
+  // --- Queries ---
+
+  @Query(() => [User], { description: 'List all users — Admin only' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  users(): Promise<User[]> {
+    return this.usersService.findAll();
+  }
+
+  @Query(() => User, { description: 'Get a specific user by ID' })
+  @UseGuards(JwtAuthGuard)
+  user(@Args('id', { type: () => ID }) id: string): Promise<User> {
+    return this.usersService.findOne(id);
+  }
+
+  @Query(() => User, { description: 'The currently authenticated user' })
+  @UseGuards(JwtAuthGuard)
+  me(@CurrentUser() user: User): User {
+    return user;
+  }
+
+  // --- Mutations ---
+
+  @Mutation(() => User, { description: 'Create a new user — Admin only' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  createUser(@Args('input') input: CreateUserInput): Promise<User> {
+    return this.usersService.create(input);
+  }
+
+  @Mutation(() => User, { description: 'Update a user — Admin only' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  updateUser(
+    @Args('id', { type: () => ID }) id: string,
+    @Args('input') input: UpdateUserInput,
+  ): Promise<User> {
+    return this.usersService.update(id, input);
+  }
+
+  @Mutation(() => Boolean, { description: 'Delete a user — Admin only' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  removeUser(@Args('id', { type: () => ID }) id: string): Promise<boolean> {
+    return this.usersService.remove(id);
+  }
+}
