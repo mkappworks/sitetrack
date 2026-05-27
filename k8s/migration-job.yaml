@@ -1,0 +1,32 @@
+# MIGRATION STRATEGY IN KUBERNETES
+# This Job runs TypeORM migrations before the backend Deployment rolls out.
+# Pattern: kubectl apply -f k8s/migration-job.yaml && kubectl wait --for=condition=complete job/db-migrate -n sitetrack --timeout=120s
+# Then: kubectl apply -f k8s/backend/deployment.yaml
+#
+# This is the answer to "how do you handle DB migrations in production?"
+# The Job runs once, migrates the schema, and exits.
+# The Deployment starts only after the schema is ready.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Timestamp in the name so re-runs don't conflict with old completed jobs
+  name: db-migrate
+  namespace: sitetrack
+spec:
+  backoffLimit: 3        # Retry up to 3 times before marking as failed
+  activeDeadlineSeconds: 300  # Fail if migration takes more than 5 minutes
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: migrate
+          image: ghcr.io/YOUR_GITHUB_USERNAME/sitetrack-backend:latest
+          # Override the default CMD to run migrations instead of starting the server
+          command: ["npm", "run", "migration:run"]
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+            - secretRef:
+                name: postgres-secret

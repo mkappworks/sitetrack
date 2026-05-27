@@ -1,0 +1,15 @@
+# backend/configmap.yaml — non-sensitive runtime config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: sitetrack
+data:
+  NODE_ENV: production
+  PORT: "3001"
+  DB_HOST: postgres-0.postgres-svc.sitetrack.svc.cluster.local
+  DB_PORT: "5432"
+  DB_NAME: sitetrack
+  DB_USER: sitetrack
+  JWT_EXPIRES_IN: 7d
+  CORS_ORIGINS: http://frontend-svc:3000

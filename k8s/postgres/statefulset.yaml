@@ -1,0 +1,61 @@
+# WHY STATEFULSET (not Deployment)?
+# Deployments are for stateless pods — any replica is interchangeable.
+# StatefulSets give each pod:
+#   1. A stable network identity: postgres-0.postgres-svc.sitetrack.svc.cluster.local
+#   2. Ordered, graceful deployment and scaling
+#   3. Persistent storage per pod (not shared)
+# Databases need all three. A Deployment would give you a random hostname
+# and potentially multiple pods fighting over the same PVC.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: sitetrack
+spec:
+  serviceName: postgres-svc
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "sitetrack", "-d", "sitetrack"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "sitetrack", "-d", "sitetrack"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+  # volumeClaimTemplates creates a PVC per pod replica
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

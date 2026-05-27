@@ -1,0 +1,15 @@
+# Headless service gives each pod a stable DNS name:
+# postgres-0.postgres-svc.sitetrack.svc.cluster.local
+# This is why StatefulSets require a headless service (clusterIP: None).
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-svc
+  namespace: sitetrack
+spec:
+  clusterIP: None  # headless — required for StatefulSet stable DNS
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -1,0 +1,78 @@
+# WHY DEPLOYMENT (not StatefulSet)?
+# The backend is stateless — any pod can handle any request.
+# Deployments give us: rolling updates, easy scaling, self-healing.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: sitetrack
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1       # Allow 1 extra pod during rollout
+      maxUnavailable: 0 # Never take a pod down before a new one is ready
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/YOUR_GITHUB_USERNAME/sitetrack-backend:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            - secretRef:
+                name: backend-secret
+            - secretRef:
+                name: postgres-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          # LIVENESS probe: K8s restarts the pod if this fails.
+          # /health/live returns 200 as long as the process is alive.
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+
+          # READINESS probe: K8s removes the pod from the load balancer if this fails.
+          # /health/ready checks the DB connection — if DB is down, stop sending traffic here.
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+      # Wait for the DB migration Job to complete before deploying
+      initContainers:
+        - name: wait-for-migration
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              until nslookup postgres-0.postgres-svc.sitetrack.svc.cluster.local; do
+                echo "Waiting for PostgreSQL DNS…"
+                sleep 2
+              done
+              echo "PostgreSQL is reachable"
