@@ -70,9 +70,6 @@ type Mutation {
 
   """Login with email + password"""
   login(input: LoginInput!): AuthPayload!
-
-  """Register a new account"""
-  register(input: CreateUserInput!): AuthPayload!
   removeMaterial(id: ID!): Boolean!
   removeProject(id: ID!): Boolean!
 
