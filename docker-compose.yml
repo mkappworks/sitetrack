@@ -1,4 +1,4 @@
-version: '3.9'
+version: "3.9"
 
 # Local development stack — mirrors the Kubernetes setup but simpler.
 # Run: docker compose up -d
@@ -34,14 +34,14 @@ services:
       postgres:
         condition: service_healthy
     profiles:
-      - tools  # only start with: docker compose --profile tools up
+      - tools # only start with: docker compose --profile tools up
 
   # ── NestJS Backend ─────────────────────────────────────────────────────────
   backend:
     build:
       context: ./backend
-      target: builder  # use builder stage in dev for faster rebuilds
-    command: npm run start:dev
+      target: builder # use builder stage in dev for faster rebuilds
+    command: npm run dev
     environment:
       NODE_ENV: development
       PORT: 3001
@@ -66,7 +66,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      target: deps  # deps stage has node_modules for dev
+      target: deps # deps stage has node_modules for dev
     command: npm run dev
     environment:
       NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
