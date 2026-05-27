@@ -47,3 +47,9 @@ Thumbs.db
 # Compose volumes are managed by Docker, but stray dumps land here.
 *.pid
 .docker/
+
+# ── Real Kubernetes Secrets (NEVER commit) ────────────────────────────────
+# Only the *.example.yaml templates are tracked. Real Secret manifests
+# are created out-of-tree (see k8s/*/secret.example.yaml for guidance).
+k8s/**/secret.yaml
+!k8s/**/secret.example.yaml

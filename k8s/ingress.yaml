@@ -1,6 +1,13 @@
 # Ingress routes external HTTP/HTTPS traffic into the cluster.
 # Prerequisites: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
 # For minikube: minikube addons enable ingress
+#
+# TLS notes:
+#   - Production: install cert-manager with a Let's Encrypt ClusterIssuer
+#     and the cert-manager.io/cluster-issuer annotation below will
+#     auto-provision the cert into the referenced Secret.
+#   - Local/minikube: comment out the spec.tls block (or generate a
+#     self-signed cert into the named Secret) to keep iteration fast.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -14,8 +21,17 @@ metadata:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection "Upgrade";
+    # Force HTTPS — JWT and login traffic must not ride plaintext.
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Uncomment when cert-manager is installed:
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - sitetrack.local
+      secretName: sitetrack-tls
   rules:
     - host: sitetrack.local  # For minikube: add to /etc/hosts
       http:
