@@ -1,14 +1,18 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { getRepositoryToken } from '@nestjs/typeorm';
-import { type ObjectLiteral, Repository } from 'typeorm';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { ProjectsService } from './projects.service';
-import { Project, ProjectStatus } from './entities/project.entity';
-import { User, UserRole } from '../users/entities/user.entity';
+import { Test, TestingModule } from "@nestjs/testing";
+import { getRepositoryToken } from "@nestjs/typeorm";
+import { type ObjectLiteral, Repository } from "typeorm";
+import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import { ProjectsService } from "./projects.service";
+import { Project, ProjectStatus } from "./entities/project.entity";
+import { User, UserRole } from "../users/entities/user.entity";
 
 // Helper to create a typed mock of a TypeORM repository
-type MockRepository<T extends ObjectLiteral> = Partial<Record<keyof Repository<T>, jest.Mock>>;
-const createMockRepository = <T extends ObjectLiteral>(): MockRepository<T> => ({
+type MockRepository<T extends ObjectLiteral> = Partial<
+  Record<keyof Repository<T>, jest.Mock>
+>;
+const createMockRepository = <
+  T extends ObjectLiteral,
+>(): MockRepository<T> => ({
   find: jest.fn(),
   findOne: jest.fn(),
   create: jest.fn(),
@@ -18,11 +22,11 @@ const createMockRepository = <T extends ObjectLiteral>(): MockRepository<T> => (
 });
 
 const mockAdmin: User = {
-  id: 'admin-1',
-  email: 'admin@test.com',
-  name: 'Admin',
+  id: "admin-1",
+  email: "admin@test.com",
+  name: "Admin",
   role: UserRole.ADMIN,
-  passwordHash: 'hash',
+  passwordHash: "hash",
   createdAt: new Date(),
   updatedAt: new Date(),
   hashPassword: jest.fn(),
@@ -31,23 +35,23 @@ const mockAdmin: User = {
 
 const mockManager: User = {
   ...mockAdmin,
-  id: 'manager-1',
+  id: "manager-1",
   role: UserRole.MANAGER,
   hashPassword: jest.fn(),
   validatePassword: jest.fn(),
 };
 
 const mockProject: Project = {
-  id: 'project-1',
-  name: 'Test Site',
+  id: "project-1",
+  name: "Test Site",
   status: ProjectStatus.ACTIVE,
-  managerId: 'manager-1',
+  managerId: "manager-1",
   createdAt: new Date(),
   updatedAt: new Date(),
 };
 
-describe('ProjectsService', () => {
-  let service: ProjectsService;
+describe("ProjectsService", () => {
+  let projectService: ProjectsService;
   let projectsRepo: MockRepository<Project>;
 
   beforeEach(async () => {
@@ -61,52 +65,154 @@ describe('ProjectsService', () => {
       ],
     }).compile();
 
-    service = module.get<ProjectsService>(ProjectsService);
+    projectService = module.get<ProjectsService>(ProjectsService);
     projectsRepo = module.get(getRepositoryToken(Project));
   });
 
-  describe('findOne', () => {
-    it('returns project when found', async () => {
+  describe("findOne", () => {
+    it("returns project when found", async () => {
       projectsRepo.findOne!.mockResolvedValue(mockProject);
-      const result = await service.findOne('project-1');
+      const result = await projectService.findOne("project-1");
       expect(result).toEqual(mockProject);
       expect(projectsRepo.findOne).toHaveBeenCalledWith({
-        where: { id: 'project-1' },
+        where: { id: "project-1" },
         relations: { manager: true },
       });
     });
 
-    it('throws NotFoundException when project does not exist', async () => {
+    it("throws NotFoundException when project does not exist", async () => {
       projectsRepo.findOne!.mockResolvedValue(null);
-      await expect(service.findOne('missing')).rejects.toThrow(NotFoundException);
+      await expect(projectService.findOne("missing")).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
-  describe('update', () => {
-    it('allows admin to update any project', async () => {
+  describe("update", () => {
+    it("allows admin to update any project", async () => {
       projectsRepo.findOne!.mockResolvedValue({ ...mockProject });
-      projectsRepo.save!.mockResolvedValue({ ...mockProject, name: 'Updated' });
+      projectsRepo.save!.mockResolvedValue({ ...mockProject, name: "Updated" });
 
-      const result = await service.update('project-1', { name: 'Updated' }, mockAdmin);
-      expect(result.name).toBe('Updated');
+      const result = await projectService.update(
+        "project-1",
+        { name: "Updated" },
+        mockAdmin,
+      );
+      expect(result.name).toBe("Updated");
     });
 
-    it('allows manager to update their own project', async () => {
+    it("allows manager to update their own project", async () => {
       projectsRepo.findOne!.mockResolvedValue({ ...mockProject });
-      projectsRepo.save!.mockResolvedValue({ ...mockProject, name: 'Updated' });
+      projectsRepo.save!.mockResolvedValue({ ...mockProject, name: "Updated" });
 
       await expect(
-        service.update('project-1', { name: 'Updated' }, mockManager),
+        projectService.update("project-1", { name: "Updated" }, mockManager),
       ).resolves.not.toThrow();
     });
 
-    it('throws ForbiddenException when manager tries to update another manager\'s project', async () => {
-      const otherManagerProject = { ...mockProject, managerId: 'other-manager' };
+    it("throws ForbiddenException when manager tries to update another manager's project", async () => {
+      const otherManagerProject = {
+        ...mockProject,
+        managerId: "other-manager",
+      };
       projectsRepo.findOne!.mockResolvedValue(otherManagerProject);
 
       await expect(
-        service.update('project-1', { name: 'Hacked' }, mockManager),
+        projectService.update("project-1", { name: "Hacked" }, mockManager),
       ).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe("create", () => {
+    it("admin creates a project; managerId stays undefined when not provided", async () => {
+      const input = { name: "New Site" };
+      const created = { ...mockProject, name: input.name, managerId: undefined };
+      projectsRepo.create!.mockReturnValue(created);
+      projectsRepo.save!.mockResolvedValue(created);
+
+      const result = await projectService.create(input, mockAdmin);
+
+      expect(projectsRepo.create).toHaveBeenCalledWith({
+        ...input,
+        managerId: undefined,
+      });
+      expect(projectsRepo.save).toHaveBeenCalledTimes(1);
+      expect(result.name).toBe("New Site");
+    });
+
+    it("manager creating a project auto-assigns themselves as managerId", async () => {
+      const input = { name: "Manager's Site" };
+      const created = { ...mockProject, name: input.name, managerId: "manager-1" };
+      projectsRepo.create!.mockReturnValue(created);
+      projectsRepo.save!.mockResolvedValue(created);
+
+      await projectService.create(input, mockManager);
+
+      expect(projectsRepo.create).toHaveBeenCalledWith({
+        ...input,
+        managerId: "manager-1",
+      });
+    });
+  });
+
+  describe("remove", () => {
+    it("admin can remove any project", async () => {
+      projectsRepo.findOne!.mockResolvedValue({ ...mockProject });
+      projectsRepo.remove!.mockResolvedValue({ ...mockProject });
+
+      const result = await projectService.remove("project-1", mockAdmin);
+
+      expect(result).toBe(true);
+      expect(projectsRepo.remove).toHaveBeenCalledTimes(1);
+    });
+
+    it("throws ForbiddenException when manager tries to remove another's project", async () => {
+      const otherManagerProject = {
+        ...mockProject,
+        managerId: "other-manager",
+      };
+      projectsRepo.findOne!.mockResolvedValue(otherManagerProject);
+
+      await expect(
+        projectService.remove("project-1", mockManager),
+      ).rejects.toThrow(ForbiddenException);
+      expect(projectsRepo.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("findAll", () => {
+    let queryBuilder: {
+      leftJoinAndSelect: jest.Mock;
+      orderBy: jest.Mock;
+      where: jest.Mock;
+      getMany: jest.Mock;
+    };
+
+    beforeEach(() => {
+      queryBuilder = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([mockProject]),
+      };
+      projectsRepo.createQueryBuilder!.mockReturnValue(queryBuilder);
+    });
+
+    it("admin sees all projects (no where-clause filtering)", async () => {
+      const result = await projectService.findAll(mockAdmin);
+
+      expect(queryBuilder.where).not.toHaveBeenCalled();
+      expect(queryBuilder.getMany).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([mockProject]);
+    });
+
+    it("manager only sees projects they manage", async () => {
+      await projectService.findAll(mockManager);
+
+      expect(queryBuilder.where).toHaveBeenCalledWith(
+        "project.managerId = :userId",
+        { userId: "manager-1" },
+      );
     });
   });
 });
