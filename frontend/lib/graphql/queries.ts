@@ -145,3 +145,15 @@ export const PROJECT_UPDATED_SUBSCRIPTION = `
     }
   }
 `;
+
+export const CREATE_USER_MUTATION = `
+  mutation CreateUser($input: CreateUserInput!) {
+    createUser(input: $input) {
+      id
+      name
+      email
+      role
+    }
+  }
+`;
+
