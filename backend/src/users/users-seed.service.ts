@@ -1,9 +1,11 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
-import { UsersService } from './users.service';
-import { UserRole } from './entities/user.entity';
+import { Injectable, Logger, OnApplicationBootstrap } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { User, UserRole } from "./entities/user.entity";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
 
-const ADMIN_EMAIL = 'admin@sitetrack.com';
-const ADMIN_PASSWORD = 'password123';
+// const ADMIN_EMAIL = "admin@sitetrack.com";
+// const ADMIN_PASSWORD = "password123";
 
 /**
  * Auto-seeds a demo admin user on first boot in development.
@@ -16,23 +18,41 @@ const ADMIN_PASSWORD = 'password123';
 export class UsersSeedService implements OnApplicationBootstrap {
   private readonly logger = new Logger(UsersSeedService.name);
 
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    @InjectRepository(User) private readonly usersRepo: Repository<User>,
+    private readonly config: ConfigService,
+  ) {}
 
   async onApplicationBootstrap(): Promise<void> {
-    if (process.env.NODE_ENV !== 'development') return;
+    if (process.env.NODE_ENV === "test") return;
 
-    const existing = await this.usersService.findByEmail(ADMIN_EMAIL);
-    if (existing) {
-      this.logger.log(`Admin user '${ADMIN_EMAIL}' already exists — seed skipped`);
+    const email = this.config.get<string>("SEED_ADMIN_EMAIL");
+    const password = this.config.get<string>("SEED_ADMIN_PASSWORD");
+
+    if (!email || !password) {
+      this.logger.log("SEED_ADMIN_EMAIL/PASSWORD not set — skipping seed");
       return;
     }
 
-    await this.usersService.create({
-      email: ADMIN_EMAIL,
-      name: 'Admin',
-      password: ADMIN_PASSWORD,
-      role: UserRole.ADMIN,
+    const existing = await this.usersRepo.findOne({ where: { email } });
+    if (existing) {
+      this.logger.log(`Admin user '${email}' already exists — seed skipped`);
+      return;
+    }
+
+    if (existing) {
+      this.logger.log(`Admin user '${email}' already exists — seed skipped`);
+      return;
+    }
+
+    const admin = this.usersRepo.create({
+      email: email,
+      name: "Admin",
+      passwordHash: password, // BeforeInsert will hash it
+      role: UserRole.ADMIN, // legal — we're past the service guard
     });
-    this.logger.log(`Seeded admin user '${ADMIN_EMAIL}' (password: '${ADMIN_PASSWORD}')`);
+    await this.usersRepo.save(admin);
+
+    this.logger.log(`Seeded admin user '${email}' (password: '${password}')`);
   }
 }
