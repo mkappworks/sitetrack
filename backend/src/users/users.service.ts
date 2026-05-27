@@ -1,8 +1,13 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
-import { User } from './entities/user.entity';
-import { CreateUserInput, UpdateUserInput } from './dto/user.input';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { In, Repository } from "typeorm";
+import { User, UserRole } from "./entities/user.entity";
+import { CreateUserInput, UpdateUserInput } from "./dto/user.input";
 
 @Injectable()
 export class UsersService {
@@ -12,8 +17,14 @@ export class UsersService {
   ) {}
 
   async create(input: CreateUserInput): Promise<User> {
-    const existing = await this.usersRepo.findOne({ where: { email: input.email } });
-    if (existing) throw new ConflictException(`Email ${input.email} is already registered`);
+    if (input.role === UserRole.ADMIN)
+      throw new ForbiddenException("Cannot create user with ADMIN role");
+
+    const existing = await this.usersRepo.findOne({
+      where: { email: input.email },
+    });
+    if (existing)
+      throw new ConflictException(`Email ${input.email} is already registered`);
 
     const user = this.usersRepo.create({
       email: input.email,
@@ -25,7 +36,7 @@ export class UsersService {
   }
 
   async findAll(): Promise<User[]> {
-    return this.usersRepo.find({ order: { createdAt: 'DESC' } });
+    return this.usersRepo.find({ order: { createdAt: "DESC" } });
   }
 
   async findOne(id: string): Promise<User> {

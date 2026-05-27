@@ -1,6 +1,8 @@
 import { InputType, Field } from '@nestjs/graphql';
-import { IsEmail, IsString, MinLength, IsEnum, IsOptional } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsEnum, IsIn, IsOptional } from 'class-validator';
 import { UserRole } from '../entities/user.entity';
+
+export const ASSIGNABLE_ROLES = [UserRole.MANAGER, UserRole.VIEWER] as const;
 
 @InputType()
 export class CreateUserInput {
@@ -19,7 +21,7 @@ export class CreateUserInput {
   password: string;
 
   @Field(() => UserRole, { nullable: true })
-  @IsEnum(UserRole)
+  @IsIn(ASSIGNABLE_ROLES, { message: 'role must be MANAGER or VIEWER' })
   @IsOptional()
   role?: UserRole;
 }
