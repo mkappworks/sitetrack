@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { ObjectType, Field, ID } from "@nestjs/graphql";
 import { User } from "../../users/entities/user.entity";
@@ -26,6 +27,7 @@ export class Equipment {
   description?: string;
 
   // manager_id FK — not exposed directly in GraphQL, use manager resolver field
+  @Index("idx_equipments_manager_id") // single-column index
   @Column({ name: "manager_id", nullable: true })
   managerId?: string;
 
