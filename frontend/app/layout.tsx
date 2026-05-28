@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { getServerSession } from 'next-auth';
 import { SessionProvider } from './session-provider';
+import { Providers } from './providers';
 import { authOptions } from '../lib/auth';
 import './globals.css';
 
@@ -19,9 +20,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className={inter.className}>
-        {/* SessionProvider makes session available to Client Components */}
+        {/* SessionProvider makes session available to Client Components.
+            Providers wraps TanStack Query — needed for any useQuery in client tree. */}
         <SessionProvider session={session}>
-          {children}
+          <Providers>{children}</Providers>
         </SessionProvider>
       </body>
     </html>

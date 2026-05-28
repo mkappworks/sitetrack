@@ -2,17 +2,19 @@
 import Link from 'next/link';
 import { StatusBadge } from './StatusBadge';
 
-interface Project {
+// Structural subset of the Zod-inferred Project — only the fields we render.
+// `| null` covers GraphQL nullable scalars; ProjectCard tolerates both null & undefined.
+interface ProjectCardProps {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   status: string;
-  location?: string;
-  manager?: { name: string };
+  location?: string | null;
+  manager?: { name: string } | null;
   materials?: { status: string }[];
 }
 
-export function ProjectCard({ project }: { project: Project }) {
+export function ProjectCard({ project }: { project: ProjectCardProps }) {
   const materialCount = project.materials?.length ?? 0;
 
   return (

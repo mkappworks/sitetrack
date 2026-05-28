@@ -2,29 +2,34 @@
 // In a larger app, split by domain. Here centralised for clarity.
 
 export const PROJECTS_QUERY = `
-  query Projects {
-    projects {
-      id
-      name
-      description
-      status
-      location
-      startDate
-      endDate
-      createdAt
-      updatedAt
-      manager {
+  query Projects($limit: Int!, $offset: Int!) {
+    projects(limit: $limit, offset: $offset) {
+      items {
         id
         name
-        email
-      }
-      materials {
-        id
-        name
-        quantity
-        unit
+        description
         status
+        location
+        startDate
+        endDate
+        createdAt
+        updatedAt
+        manager {
+          id
+          name
+          email
+        }
+        materials {
+          id
+          name
+          quantity
+          unit
+          status
+        }
       }
+      total
+      limit
+      offset
     }
   }
 `;
@@ -102,13 +107,18 @@ export const ME_QUERY = `
 `;
 
 export const USERS_QUERY = `
-  query Users {
-    users {
-      id
-      name
-      email
-      role
-      createdAt
+  query Users($limit: Int!, $offset: Int!) {
+    users(limit: $limit, offset: $offset) {
+      items {
+        id
+        name
+        email
+        role
+        createdAt
+      }
+      total
+      limit
+      offset
     }
   }
 `;

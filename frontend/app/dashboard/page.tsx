@@ -12,22 +12,34 @@ import { authOptions } from '../../lib/auth';
 interface Project {
   id: string;
   name: string;
-  description?: string;
+  description?: string | null;
   status: string;
-  location?: string;
-  startDate?: string;
-  endDate?: string;
-  manager?: { id: string; name: string; email: string };
+  location?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  manager?: { id: string; name: string; email: string } | null;
   materials?: { id: string; status: string }[];
 }
+
+interface ProjectsPage {
+  items: Project[];
+  total: number;
+}
+
+// Dashboard renders a status summary — needs the first page of projects.
+// For a learning-scale dataset 100 is plenty; at production scale this would
+// move to a dedicated stats endpoint that returns counts only.
+const DASHBOARD_PAGE_SIZE = 100;
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const client = await gqlClient();
 
-  // This fetch runs on the server — no CORS, no waterfall, no client bundle
-  const data = await client.request<{ projects: Project[] }>(PROJECTS_QUERY);
-  const projects = data.projects;
+  const data = await client.request<{ projects: ProjectsPage }>(PROJECTS_QUERY, {
+    limit: DASHBOARD_PAGE_SIZE,
+    offset: 0,
+  });
+  const projects = data.projects.items;
 
   const statusCounts = projects.reduce<Record<string, number>>((acc, p) => {
     acc[p.status] = (acc[p.status] ?? 0) + 1;

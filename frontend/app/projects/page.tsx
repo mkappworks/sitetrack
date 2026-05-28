@@ -1,53 +1,53 @@
 import { getServerSession } from 'next-auth';
-import { gqlClient } from '../../lib/graphql/client';
-import { PROJECTS_QUERY } from '../../lib/graphql/queries';
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { authOptions } from '../../lib/auth';
-import { ProjectCard } from '../../components/ProjectCard';
+import { getQueryClient } from '../../lib/get-query-client';
+import { projectsQueryOptions } from '../../lib/queries/projects';
 import { CreateProjectButton } from '../../components/CreateProjectButton';
+import { ProjectsListClient } from './ProjectsListClient';
 
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  status: string;
-  location?: string;
-  manager?: { id: string; name: string; email: string };
-  materials?: { id: string; status: string }[];
-}
+const PAGE_SIZE = 20;
 
-export default async function ProjectsPage() {
+// searchParams is async in Next.js 15+: it's a Promise we must await.
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
+  const { page: pageParam } = await searchParams;
+  const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
+
   const session = await getServerSession(authOptions);
-  const client = await gqlClient();
+  const canCreate =
+    session?.user.role === 'ADMIN' || session?.user.role === 'MANAGER';
 
-  const data = await client.request<{ projects: Project[] }>(PROJECTS_QUERY);
-  const projects = data.projects;
-
-  const canCreate = session?.user.role === 'ADMIN' || session?.user.role === 'MANAGER';
+  // Per-request QueryClient on the server (isServer branch of getQueryClient).
+  const queryClient = getQueryClient();
+  // Server-side prefetch — by the time the Client Component mounts, the cache
+  // already has the data for this key. No client-side fetch on first paint.
+  await queryClient.prefetchQuery(
+    projectsQueryOptions({
+      limit: PAGE_SIZE,
+      offset,
+      token: session?.accessToken,
+    }),
+  );
 
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            {projects.length} {projects.length === 1 ? 'project' : 'projects'}
-          </p>
+          {/* The count comes from the hydrated query — see ProjectsListClient header */}
         </div>
         {canCreate && <CreateProjectButton />}
       </div>
 
-      {projects.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
-          <p className="text-lg font-medium">No projects yet</p>
-          <p className="text-sm mt-1">Create your first project to get started</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
-        </div>
-      )}
+      {/* dehydrate() serialises the cache; HydrationBoundary rehydrates it client-side */}
+      <HydrationBoundary state={dehydrate(queryClient)}>
+        <ProjectsListClient page={page} pageSize={PAGE_SIZE} />
+      </HydrationBoundary>
     </div>
   );
 }
