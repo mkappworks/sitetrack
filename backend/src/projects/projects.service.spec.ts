@@ -201,12 +201,14 @@ describe("ProjectsService", () => {
     });
   });
 
-  describe("findAll", () => {
+  describe("findAll (paginated)", () => {
     let queryBuilder: {
       leftJoinAndSelect: jest.Mock;
       orderBy: jest.Mock;
       where: jest.Mock;
-      getMany: jest.Mock;
+      take: jest.Mock;
+      skip: jest.Mock;
+      getManyAndCount: jest.Mock;
     };
 
     beforeEach(() => {
@@ -214,26 +216,39 @@ describe("ProjectsService", () => {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([mockProject]),
+        take: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        // [items, totalCount] tuple
+        getManyAndCount: jest.fn().mockResolvedValue([[mockProject], 1]),
       };
       projectsRepo.createQueryBuilder!.mockReturnValue(queryBuilder);
     });
 
-    it("admin sees all projects (no where-clause filtering)", async () => {
-      const result = await projectService.findAll(mockAdmin);
+    it("admin sees all projects, paginated, with total count", async () => {
+      const result = await projectService.findAll(mockAdmin, { limit: 20, offset: 0 });
 
       expect(queryBuilder.where).not.toHaveBeenCalled();
-      expect(queryBuilder.getMany).toHaveBeenCalledTimes(1);
-      expect(result).toEqual([mockProject]);
+      expect(queryBuilder.take).toHaveBeenCalledWith(20);
+      expect(queryBuilder.skip).toHaveBeenCalledWith(0);
+      expect(queryBuilder.getManyAndCount).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        items: [mockProject],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      });
     });
 
-    it("manager only sees projects they manage", async () => {
-      await projectService.findAll(mockManager);
+    it("manager only sees projects they manage (filter applied before pagination)", async () => {
+      await projectService.findAll(mockManager, { limit: 10, offset: 40 });
 
       expect(queryBuilder.where).toHaveBeenCalledWith(
         "project.managerId = :userId",
         { userId: "manager-1" },
       );
+      // Filter is applied BEFORE take/skip so count reflects only the manager's rows.
+      expect(queryBuilder.take).toHaveBeenCalledWith(10);
+      expect(queryBuilder.skip).toHaveBeenCalledWith(40);
     });
   });
 

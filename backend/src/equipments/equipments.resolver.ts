@@ -4,6 +4,8 @@ import { EquipmentsService } from "./equipments.service";
 import { Equipment } from "./entities/equipment.entity";
 import { CreateEquipmentInput } from "./dto/create-equipment.input";
 import { UpdateEquipmentInput } from "./dto/update-equipment.input";
+import { EquipmentPage } from "./dto/equipment-page.type";
+import { PaginationArgs } from "../common/pagination/paginated.type";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { User, UserRole } from "../users/entities/user.entity";
@@ -16,10 +18,13 @@ export class EquipmentsResolver {
 
   // --- Queries ---
 
-  @Query(() => [Equipment], { name: "equipments" })
+  @Query(() => EquipmentPage, { name: "equipments" })
   @UseGuards(JwtAuthGuard)
-  findAll(@CurrentUser() user: User): Promise<Equipment[]> {
-    return this.equipmentsService.findAll(user);
+  findAll(
+    @Args() pagination: PaginationArgs,
+    @CurrentUser() user: User,
+  ): Promise<EquipmentPage> {
+    return this.equipmentsService.findAll(user, pagination);
   }
 
   @Query(() => Equipment, { name: "equipment" })

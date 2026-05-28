@@ -3,6 +3,8 @@ import { UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User, UserRole } from './entities/user.entity';
 import { CreateUserInput, UpdateUserInput } from './dto/user.input';
+import { UserPage } from './dto/user-page.type';
+import { PaginationArgs } from '../common/pagination/paginated.type';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -14,11 +16,11 @@ export class UsersResolver {
 
   // --- Queries ---
 
-  @Query(() => [User], { description: 'List all users — Admin only' })
+  @Query(() => UserPage, { description: 'List all users (paginated) — Admin only' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  users(): Promise<User[]> {
-    return this.usersService.findAll();
+  users(@Args() pagination: PaginationArgs): Promise<UserPage> {
+    return this.usersService.findAll(pagination);
   }
 
   @Query(() => User, { description: 'Get a specific user by ID — Admin only. Non-admins use `me` for self.' })

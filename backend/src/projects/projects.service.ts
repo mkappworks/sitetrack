@@ -7,6 +7,8 @@ import {
   CreateProjectMaterialInput,
   UpdateProjectInput,
 } from './dto/project.input';
+import { ProjectPage } from './dto/project-page.type';
+import { PaginationArgs } from '../common/pagination/paginated.type';
 import { Material } from '../materials/entities/material.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 
@@ -19,18 +21,26 @@ export class ProjectsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findAll(user: User): Promise<Project[]> {
+  async findAll(user: User, pagination: PaginationArgs): Promise<ProjectPage> {
     const qb = this.projectsRepo
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.manager', 'manager')
       .orderBy('project.createdAt', 'DESC');
 
-    // Managers/Viewers only see their own managed projects
+    // Managers/Viewers only see their own managed projects.
+    // Filter is applied BEFORE take/skip so the count reflects filtered rows.
     if (user.role === UserRole.MANAGER) {
       qb.where('project.managerId = :userId', { userId: user.id });
     }
 
-    return qb.getMany();
+    // getManyAndCount issues two queries: SELECT ... LIMIT/OFFSET and COUNT(*).
+    // The second one ignores LIMIT/OFFSET, returning the total filtered count.
+    const [items, total] = await qb
+      .take(pagination.limit)
+      .skip(pagination.offset)
+      .getManyAndCount();
+
+    return { items, total, limit: pagination.limit, offset: pagination.offset };
   }
 
   async findOne(id: string): Promise<Project> {

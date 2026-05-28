@@ -226,12 +226,14 @@ describe("EquipmentsService", () => {
     });
   });
 
-  describe("findAll", () => {
+  describe("findAll (paginated)", () => {
     let queryBuilder: {
       leftJoinAndSelect: jest.Mock;
       orderBy: jest.Mock;
       where: jest.Mock;
-      getMany: jest.Mock;
+      take: jest.Mock;
+      skip: jest.Mock;
+      getManyAndCount: jest.Mock;
     };
 
     beforeEach(() => {
@@ -239,26 +241,37 @@ describe("EquipmentsService", () => {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([mockEquipment]),
+        take: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        getManyAndCount: jest.fn().mockResolvedValue([[mockEquipment], 1]),
       };
       equipmentRepo.createQueryBuilder!.mockReturnValue(queryBuilder);
     });
 
-    it("admin sees all equipment (no where-clause filtering)", async () => {
-      const result = await equipmentsService.findAll(mockAdmin);
+    it("admin sees all equipment, paginated, with total count", async () => {
+      const result = await equipmentsService.findAll(mockAdmin, { limit: 20, offset: 0 });
 
       expect(queryBuilder.where).not.toHaveBeenCalled();
-      expect(queryBuilder.getMany).toHaveBeenCalledTimes(1);
-      expect(result).toEqual([mockEquipment]);
+      expect(queryBuilder.take).toHaveBeenCalledWith(20);
+      expect(queryBuilder.skip).toHaveBeenCalledWith(0);
+      expect(queryBuilder.getManyAndCount).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        items: [mockEquipment],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      });
     });
 
-    it("manager only sees equipment they manage", async () => {
-      await equipmentsService.findAll(mockManager);
+    it("manager only sees equipment they manage (filter applied before pagination)", async () => {
+      await equipmentsService.findAll(mockManager, { limit: 5, offset: 10 });
 
       expect(queryBuilder.where).toHaveBeenCalledWith(
         "equipment.managerId = :userId",
         { userId: "manager-1" },
       );
+      expect(queryBuilder.take).toHaveBeenCalledWith(5);
+      expect(queryBuilder.skip).toHaveBeenCalledWith(10);
     });
   });
 });

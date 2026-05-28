@@ -70,6 +70,13 @@ type Equipment {
   updatedAt: DateTime!
 }
 
+type EquipmentPage {
+  items: [Equipment!]!
+  limit: Int!
+  offset: Int!
+  total: Int!
+}
+
 input LoginInput {
   email: String!
   password: String!
@@ -133,6 +140,13 @@ type Project {
   updatedAt: DateTime!
 }
 
+type ProjectPage {
+  items: [Project!]!
+  limit: Int!
+  offset: Int!
+  total: Int!
+}
+
 enum ProjectStatus {
   ACTIVE
   CANCELLED
@@ -143,19 +157,19 @@ enum ProjectStatus {
 
 type Query {
   equipment(id: ID!): Equipment!
-  equipments: [Equipment!]!
+  equipments(limit: Int! = 20, offset: Int! = 0): EquipmentPage!
   materialsByProject(projectId: ID!): [Material!]!
 
   """The currently authenticated user"""
   me: User!
   project(id: ID!): Project!
-  projects: [Project!]!
+  projects(limit: Int! = 20, offset: Int! = 0): ProjectPage!
 
   """Get a specific user by ID — Admin only. Non-admins use `me` for self."""
   user(id: ID!): User!
 
-  """List all users — Admin only"""
-  users: [User!]!
+  """List all users (paginated) — Admin only"""
+  users(limit: Int! = 20, offset: Int! = 0): UserPage!
 }
 
 type Subscription {
@@ -197,6 +211,13 @@ type User {
   projects: [Project!]
   role: UserRole!
   updatedAt: DateTime!
+}
+
+type UserPage {
+  items: [User!]!
+  limit: Int!
+  offset: Int!
+  total: Int!
 }
 
 enum UserRole {

@@ -8,6 +8,8 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { In, Repository } from "typeorm";
 import { User, UserRole } from "./entities/user.entity";
 import { CreateUserInput, UpdateUserInput } from "./dto/user.input";
+import { UserPage } from "./dto/user-page.type";
+import { PaginationArgs } from "../common/pagination/paginated.type";
 
 @Injectable()
 export class UsersService {
@@ -35,8 +37,14 @@ export class UsersService {
     return this.usersRepo.save(user);
   }
 
-  async findAll(): Promise<User[]> {
-    return this.usersRepo.find({ order: { createdAt: "DESC" } });
+  async findAll(pagination: PaginationArgs): Promise<UserPage> {
+    // findAndCount returns [items, total]; total is pre-LIMIT count
+    const [items, total] = await this.usersRepo.findAndCount({
+      order: { createdAt: "DESC" },
+      take: pagination.limit,
+      skip: pagination.offset,
+    });
+    return { items, total, limit: pagination.limit, offset: pagination.offset };
   }
 
   async findOne(id: string): Promise<User> {

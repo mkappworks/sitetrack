@@ -10,6 +10,8 @@ import {
   CreateProjectWithMaterialsInput,
   UpdateProjectInput,
 } from './dto/project.input';
+import { ProjectPage } from './dto/project-page.type';
+import { PaginationArgs } from '../common/pagination/paginated.type';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -26,10 +28,13 @@ export class ProjectsResolver {
 
   // --- Queries ---
 
-  @Query(() => [Project])
+  @Query(() => ProjectPage)
   @UseGuards(JwtAuthGuard)
-  projects(@CurrentUser() user: User): Promise<Project[]> {
-    return this.projectsService.findAll(user);
+  projects(
+    @Args() pagination: PaginationArgs,
+    @CurrentUser() user: User,
+  ): Promise<ProjectPage> {
+    return this.projectsService.findAll(user, pagination);
   }
 
   @Query(() => Project)

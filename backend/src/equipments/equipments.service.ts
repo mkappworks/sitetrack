@@ -7,7 +7,9 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { CreateEquipmentInput } from "./dto/create-equipment.input";
 import { UpdateEquipmentInput } from "./dto/update-equipment.input";
+import { EquipmentPage } from "./dto/equipment-page.type";
 import { Equipment } from "./entities/equipment.entity";
+import { PaginationArgs } from "../common/pagination/paginated.type";
 import { User, UserRole } from "../users/entities/user.entity";
 
 @Injectable()
@@ -29,18 +31,24 @@ export class EquipmentsService {
     return this.equipmentRepo.save(equipment);
   }
 
-  async findAll(user: User): Promise<Equipment[]> {
+  async findAll(user: User, pagination: PaginationArgs): Promise<EquipmentPage> {
     const qb = this.equipmentRepo
       .createQueryBuilder("equipment")
       .leftJoinAndSelect("equipment.manager", "manager")
       .orderBy("equipment.createdAt", "DESC");
 
-    // Managers/Viewers only see their own managed equipment
+    // Managers/Viewers only see their own managed equipment.
+    // Filter is applied BEFORE take/skip so count reflects only the manager's rows.
     if (user.role === UserRole.MANAGER) {
       qb.where("equipment.managerId = :userId", { userId: user.id });
     }
 
-    return qb.getMany();
+    const [items, total] = await qb
+      .take(pagination.limit)
+      .skip(pagination.offset)
+      .getManyAndCount();
+
+    return { items, total, limit: pagination.limit, offset: pagination.offset };
   }
 
   async findOne(id: string): Promise<Equipment> {
