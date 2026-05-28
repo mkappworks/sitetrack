@@ -56,7 +56,11 @@ export const ProjectSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   manager: ManagerSchema.nullable().optional(),
+  // materials and materialCount are both .optional() because different queries
+  // select different combinations: list view selects materialCount only,
+  // detail view selects materials only. A single Project Zod type covers both.
   materials: z.array(MaterialSchema).optional(),
+  materialCount: z.number().int().nonnegative().optional(),
 });
 
 export const UserSchema = z.object({

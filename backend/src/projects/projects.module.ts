@@ -6,6 +6,7 @@ import { ProjectsService } from './projects.service';
 import { ProjectsResolver } from './projects.resolver';
 import { ProjectMaterialsResolver } from './project-materials.resolver';
 import { MaterialsByProjectLoader } from './loaders/material.loader';
+import { MaterialCountByProjectLoader } from './loaders/material-count.loader';
 
 @Module({
   imports: [
@@ -17,8 +18,9 @@ import { MaterialsByProjectLoader } from './loaders/material.loader';
     // REQUEST-scoped resolver hosts the materials field resolver
     // (split from ProjectsResolver so @Subscription stays singleton)
     ProjectMaterialsResolver,
-    // REQUEST-scoped DataLoader — a new instance per incoming request
+    // REQUEST-scoped DataLoaders — new instance per incoming request
     MaterialsByProjectLoader,
+    MaterialCountByProjectLoader,
   ],
 })
 export class ProjectsModule {}

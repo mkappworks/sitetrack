@@ -2,7 +2,7 @@ import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn,
   UpdateDateColumn, ManyToOne, OneToMany, JoinColumn,
 } from 'typeorm';
-import { ObjectType, Field, ID, registerEnumType } from '@nestjs/graphql';
+import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 import { User } from '../../users/entities/user.entity';
 import { Material } from '../../materials/entities/material.entity';
 
@@ -82,6 +82,11 @@ export class Project {
   @Field(() => [Material], { nullable: true })
   @OneToMany(() => Material, (material) => material.project)
   materials?: Material[];
+
+  // Derived field — computed via MaterialCountByProjectLoader, not stored.
+  // No @Column: TypeORM ignores it. Resolver provides the value via @ResolveField.
+  @Field(() => Int)
+  materialCount?: number;
 
   @Field()
   @CreateDateColumn({ name: 'created_at' })

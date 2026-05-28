@@ -11,11 +11,13 @@ interface ProjectCardProps {
   status: string;
   location?: string | null;
   manager?: { name: string } | null;
-  materials?: { status: string }[];
+  // From the materialCount field resolver (batched COUNT loader) — no need to
+  // pull the materials array client-side to render this badge.
+  materialCount?: number;
 }
 
 export function ProjectCard({ project }: { project: ProjectCardProps }) {
-  const materialCount = project.materials?.length ?? 0;
+  const materialCount = project.materialCount ?? 0;
 
   return (
     <Link

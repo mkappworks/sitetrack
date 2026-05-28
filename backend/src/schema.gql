@@ -140,6 +140,7 @@ type Project {
   id: ID!
   location: String
   manager: User
+  materialCount: Int!
   materials: [Material!]
   name: String!
   startDate: DateTime

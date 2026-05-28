@@ -1,6 +1,11 @@
 // All GraphQL query/mutation strings in one place.
 // In a larger app, split by domain. Here centralised for clarity.
 
+// List query: select materialCount (one batched COUNT query per request via
+// DataLoader) instead of the full materials array. The list view only needs
+// the badge "📦 N materials" — selecting the array would pull every material
+// for every project on the page, which scales linearly with project count
+// AND materials per project. Detail page (PROJECT_QUERY) still selects them.
 export const PROJECTS_QUERY = `
   query Projects($limit: Int!, $offset: Int!) {
     projects(limit: $limit, offset: $offset) {
@@ -19,13 +24,7 @@ export const PROJECTS_QUERY = `
           name
           email
         }
-        materials {
-          id
-          name
-          quantity
-          unit
-          status
-        }
+        materialCount
       }
       total
       limit
