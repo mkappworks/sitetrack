@@ -1,9 +1,10 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { getRepositoryToken } from "@nestjs/typeorm";
-import { type ObjectLiteral, Repository } from "typeorm";
+import { getRepositoryToken, getDataSourceToken } from "@nestjs/typeorm";
+import { DataSource, EntityManager, type ObjectLiteral, Repository } from "typeorm";
 import { NotFoundException, ForbiddenException } from "@nestjs/common";
 import { ProjectsService } from "./projects.service";
 import { Project, ProjectStatus } from "./entities/project.entity";
+import { Material } from "../materials/entities/material.entity";
 import { User, UserRole } from "../users/entities/user.entity";
 
 // Helper to create a typed mock of a TypeORM repository
@@ -53,14 +54,34 @@ const mockProject: Project = {
 describe("ProjectsService", () => {
   let projectService: ProjectsService;
   let projectsRepo: MockRepository<Project>;
+  // Fake EntityManager that mirrors create/save — exposed so tests can stub
+  // the per-call return values and assert that writes went through it.
+  let txnManager: { create: jest.Mock; save: jest.Mock };
+  let dataSource: { transaction: jest.Mock };
 
   beforeEach(async () => {
+    txnManager = {
+      create: jest.fn((_entity: unknown, data: object) => ({ ...data })),
+      save: jest.fn(),
+    };
+    // DataSource.transaction(cb) invokes cb with a transactional EntityManager
+    // and propagates exceptions — that's the contract our service relies on.
+    dataSource = {
+      transaction: jest.fn((cb: (m: EntityManager) => Promise<unknown>) =>
+        cb(txnManager as unknown as EntityManager),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProjectsService,
         {
           provide: getRepositoryToken(Project),
           useValue: createMockRepository<Project>(),
+        },
+        {
+          provide: getDataSourceToken(),
+          useValue: dataSource as unknown as DataSource,
         },
       ],
     }).compile();
@@ -213,6 +234,69 @@ describe("ProjectsService", () => {
         "project.managerId = :userId",
         { userId: "manager-1" },
       );
+    });
+  });
+
+  describe("createWithMaterials", () => {
+    it("creates a project and its materials atomically through the same transactional manager", async () => {
+      // First save = project (returns row with id stamped on it).
+      // Second save = materials array (children link via projectId).
+      txnManager.save
+        .mockImplementationOnce(async (entity: Project) => ({
+          ...entity,
+          id: "project-1",
+        }))
+        .mockImplementationOnce(async (entities: Material[]) =>
+          entities.map((m, i) => ({ ...m, id: `material-${i + 1}` })),
+        );
+
+      const result = await projectService.createWithMaterials(
+        { name: "New Site", status: ProjectStatus.PLANNING },
+        [
+          { name: "Cement", quantity: 100, unit: "kg" },
+          { name: "Rebar", quantity: 50, unit: "m" },
+        ],
+        mockAdmin,
+      );
+
+      // The whole flow ran inside ONE transaction call
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+      // Both saves used the SAME (transactional) manager
+      expect(txnManager.save).toHaveBeenCalledTimes(2);
+      // Default repo was NOT used — proves nothing escaped the transaction
+      expect(projectsRepo.save).not.toHaveBeenCalled();
+      // Materials carry the parent project's id (set after first save resolved)
+      const materialsArg = txnManager.save.mock.calls[1][0] as Material[];
+      expect(materialsArg).toHaveLength(2);
+      expect(materialsArg.every((m) => m.projectId === "project-1")).toBe(true);
+      expect(result.id).toBe("project-1");
+    });
+
+    it("rolls back: when the materials save throws, the caller receives the error and no write escapes the transaction", async () => {
+      // Project save succeeds; materials save fails mid-transaction.
+      txnManager.save
+        .mockImplementationOnce(async (entity: Project) => ({
+          ...entity,
+          id: "project-1",
+        }))
+        .mockImplementationOnce(async () => {
+          throw new Error("quantity violates check constraint");
+        });
+
+      await expect(
+        projectService.createWithMaterials(
+          { name: "Bad Site" },
+          [{ name: "Bad Material", quantity: -5, unit: "kg" }],
+          mockAdmin,
+        ),
+      ).rejects.toThrow("quantity violates check constraint");
+
+      // The proof: every write was routed through the transactional `manager`
+      // (no escape to `this.projectsRepo`). TypeORM's transaction() catches the
+      // throw and issues ROLLBACK, so the project row never commits.
+      expect(txnManager.save).toHaveBeenCalledTimes(2);
+      expect(projectsRepo.save).not.toHaveBeenCalled();
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     });
   });
 });

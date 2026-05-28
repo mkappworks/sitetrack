@@ -5,7 +5,11 @@ import { UseGuards } from '@nestjs/common';
 import { PubSub } from 'graphql-subscriptions';
 import { ProjectsService } from './projects.service';
 import { Project } from './entities/project.entity';
-import { CreateProjectInput, UpdateProjectInput } from './dto/project.input';
+import {
+  CreateProjectInput,
+  CreateProjectWithMaterialsInput,
+  UpdateProjectInput,
+} from './dto/project.input';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -44,6 +48,17 @@ export class ProjectsResolver {
     @CurrentUser() user: User,
   ): Promise<Project> {
     return this.projectsService.create(input, user);
+  }
+
+  @Mutation(() => Project)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  createProjectWithMaterials(
+    @Args('input') input: CreateProjectWithMaterialsInput,
+    @CurrentUser() user: User,
+  ): Promise<Project> {
+    const { materials, ...projectInput } = input;
+    return this.projectsService.createWithMaterials(projectInput, materials, user);
   }
 
   @Mutation(() => Project)

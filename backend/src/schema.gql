@@ -31,6 +31,24 @@ input CreateProjectInput {
   status: ProjectStatus
 }
 
+input CreateProjectMaterialInput {
+  name: String!
+  quantity: Float!
+  status: MaterialStatus
+  unit: String!
+}
+
+input CreateProjectWithMaterialsInput {
+  description: String
+  endDate: String
+  location: String
+  managerId: ID
+  materials: [CreateProjectMaterialInput!]!
+  name: String!
+  startDate: String
+  status: ProjectStatus
+}
+
 input CreateUserInput {
   email: String!
   name: String!
@@ -80,6 +98,7 @@ type Mutation {
   createEquipment(input: CreateEquipmentInput!): Equipment!
   createMaterial(input: CreateMaterialInput!): Material!
   createProject(input: CreateProjectInput!): Project!
+  createProjectWithMaterials(input: CreateProjectWithMaterialsInput!): Project!
 
   """Create a new user — Admin only"""
   createUser(input: CreateUserInput!): User!

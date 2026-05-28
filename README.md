@@ -156,3 +156,43 @@ npx nest g class     equipment/dto/equipment.input        --no-spec
 ```
 
 Each command updates the relevant `imports`/`providers` arrays automatically. `--no-spec` skips the test stub.
+
+## Schema changes — when to use migrations vs. `synchronize`
+
+`backend/src/app.module.ts` enables `synchronize: true` only when `NODE_ENV=development`. In that mode TypeORM auto-applies entity-decorator changes (new tables, columns, indexes) to the live DB at app startup. In production `synchronize` is off and the only path is migrations.
+
+The npm scripts already live in `backend/package.json`:
+
+```bash
+npm run migration:generate --name=AddEquipmentIndexes
+npm run migration:run
+```
+
+| Environment  | How indexes (and other schema changes) get created                                              |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| Local dev    | Add `@Index()` (or other decorator), restart `npm run dev` — `synchronize` creates it           |
+| Staging/prod | Add `@Index()`, run `npm run migration:generate`, commit the migration, deploy, `migration:run` |
+
+`synchronize` is a productivity shortcut, not a safety net — it can DROP a column on rename, losing data. For anything risky (renames, type changes, large tables), generate a migration locally too, read the SQL, and hand-edit before committing.
+
+## Testing
+
+Two suites, two purposes:
+
+| Command            | Scope                                                                  | Requires                                                              |
+| ------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `npm test`         | Unit tests — mocked TypeORM repositories, no DB                        | Nothing                                                               |
+| `npm run test:e2e` | End-to-end — real Postgres, real transactions, real rollbacks          | Docker-compose Postgres up; creates a separate `sitetrack_test` DB    |
+
+The unit suite proves service-level contracts in isolation. The e2e suite proves **DB-engine-level guarantees** that a mock can't — for example `backend/test/projects.transaction.e2e-spec.ts` calls `ProjectsService.createWithMaterials` with a `varchar(255)` overflow on the child material, expects the call to reject, then queries Postgres directly to confirm zero project rows survive. That's the only way to prove `ROLLBACK` actually fired at the engine.
+
+```bash
+# Start the database first
+docker compose up -d postgres
+
+# Unit tests — fast, no DB
+cd backend && npm test
+
+# E2E — uses sitetrack_test DB (auto-created), dev data is untouched
+cd backend && npm run test:e2e
+```
