@@ -98,9 +98,28 @@ const MATERIAL_STATUSES: MaterialStatus[] = [
 // Deterministic-ish picker: cycles by index, no PRNG needed for reproducibility.
 const pickAt = <T>(arr: T[], i: number): T => arr[i % arr.length];
 
+// Sentinel row that proves THIS seed has already run. Checking for a specific
+// known email is precise — unlike a count threshold, it never falsely flags a
+// sparsely-populated prod DB as "already seeded."
+const SEED_SENTINEL_EMAIL = 'manager1@sitetrack.com';
+
 // ── Main ──────────────────────────────────────────────────────────────────
 async function seed() {
   const logger = new Logger('Seed');
+
+  // Hard env guard — refuse to run anywhere but development unless explicitly
+  // overridden. Prevents accidental seeding (with known-credential users) when
+  // a CI job, a misconfigured shell, or a deploy script points at the wrong DB.
+  if (
+    process.env.NODE_ENV !== 'development' &&
+    process.env.ALLOW_SEED !== 'true'
+  ) {
+    console.error(
+      `Refusing to seed: NODE_ENV="${process.env.NODE_ENV ?? 'unset'}". ` +
+        `Set ALLOW_SEED=true to override (e.g. for test fixtures).`,
+    );
+    process.exit(1);
+  }
 
   // createApplicationContext spins up DI without HTTP/GraphQL listeners —
   // perfect for one-shot scripts that only need services and repositories.
@@ -115,11 +134,13 @@ async function seed() {
     const equipmentRepo = ds.getRepository(Equipment);
     const materialsRepo = ds.getRepository(Material);
 
-    const existingUsers = await usersRepo.count();
-    if (existingUsers > 5) {
+    const sentinel = await usersRepo.findOne({
+      where: { email: SEED_SENTINEL_EMAIL },
+    });
+    if (sentinel) {
       logger.log(
-        `${existingUsers} users already present — assuming seeded. Skipping. ` +
-          `Truncate the tables manually for a fresh seed.`,
+        `Seed sentinel ${SEED_SENTINEL_EMAIL} already exists — skipping. ` +
+          `Truncate the tables for a fresh seed (see README).`,
       );
       return;
     }
@@ -215,10 +236,9 @@ async function seed() {
     }
     logger.log(`  → ${materialCount} materials`);
 
-    logger.log('Seed complete. Logins:');
-    logger.log('  admin     → admin@sitetrack.com / (SEED_ADMIN_PASSWORD env)');
-    logger.log('  manager1  → manager1@sitetrack.com / password123');
-    logger.log('  viewer1   → viewer1@sitetrack.com / password123');
+    // Credentials are documented in the README — don't echo passwords in logs
+    // (CI captures, terminal scrollback, screen-share leakage all apply).
+    logger.log('Seed complete. See README "Seeding development data" for logins.');
   } finally {
     await app.close();
   }
