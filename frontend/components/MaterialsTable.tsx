@@ -5,8 +5,10 @@ import { useForm } from '@tanstack/react-form';
 import {
   useUpdateMaterialQuantity,
   useUpdateMaterialStatus,
+  useRemoveMaterial,
 } from '../lib/mutations/projects';
 import { UpdateMaterialQuantitySchema } from '../lib/validation/forms';
+import { ConfirmDeleteModal } from './ConfirmDeleteModal';
 
 const MATERIAL_STATUSES = [
   'ORDERED',
@@ -43,6 +45,8 @@ export function MaterialsTable({
   projectId: string;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingMaterial, setDeletingMaterial] = useState<MaterialRow | null>(null);
+  const removeMutation = useRemoveMaterial({ projectId });
 
   return (
     <div className="overflow-x-auto">
@@ -52,7 +56,7 @@ export function MaterialsTable({
             <th className="text-left py-2 pr-4 font-medium text-gray-500">Material</th>
             <th className="text-right py-2 pr-4 font-medium text-gray-500">Quantity</th>
             <th className="text-left py-2 pr-4 font-medium text-gray-500">Status</th>
-            {canEdit && <th className="text-right py-2 font-medium text-gray-500 w-24" />}
+            {canEdit && <th className="text-right py-2 font-medium text-gray-500 w-32" />}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -80,12 +84,18 @@ export function MaterialsTable({
                   )}
                 </td>
                 {canEdit && (
-                  <td className="py-2.5 text-right">
+                  <td className="py-2.5 text-right space-x-3">
                     <button
                       onClick={() => setEditingId(m.id)}
                       className="text-xs text-blue-600 hover:text-blue-700"
                     >
                       Edit qty
+                    </button>
+                    <button
+                      onClick={() => setDeletingMaterial(m)}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      Remove
                     </button>
                   </td>
                 )}
@@ -94,6 +104,31 @@ export function MaterialsTable({
           )}
         </tbody>
       </table>
+
+      <ConfirmDeleteModal
+        open={!!deletingMaterial}
+        title="Remove material"
+        description={
+          deletingMaterial && (
+            <>
+              <strong className="text-gray-900">{deletingMaterial.name}</strong>
+              {' '}({deletingMaterial.quantity} {deletingMaterial.unit}) will be removed from this project.
+            </>
+          )
+        }
+        confirmLabel="Remove material"
+        isDeleting={removeMutation.isPending}
+        error={removeMutation.isError ? removeMutation.error.message : null}
+        onCancel={() => {
+          setDeletingMaterial(null);
+          removeMutation.reset();
+        }}
+        onConfirm={async () => {
+          if (!deletingMaterial) return;
+          await removeMutation.mutateAsync(deletingMaterial.id);
+          setDeletingMaterial(null);
+        }}
+      />
     </div>
   );
 }

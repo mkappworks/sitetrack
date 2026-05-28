@@ -12,6 +12,7 @@ import {
   useRemoveEquipment,
 } from '../../../lib/mutations/equipments';
 import { UpdateEquipmentSchema } from '../../../lib/validation/forms';
+import { ConfirmDeleteModal } from '../../../components/ConfirmDeleteModal';
 
 export function EquipmentDetailClient({ id }: { id: string }) {
   const router = useRouter();
@@ -20,6 +21,7 @@ export function EquipmentDetailClient({ id }: { id: string }) {
     equipmentByIdQueryOptions({ id, token: session?.accessToken }),
   );
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const removeMutation = useRemoveEquipment();
 
   if (!equipment) return null;
@@ -27,12 +29,6 @@ export function EquipmentDetailClient({ id }: { id: string }) {
   const canEdit =
     session?.user.role === 'ADMIN' || session?.user.role === 'MANAGER';
   const canDelete = session?.user.role === 'ADMIN';
-
-  const handleDelete = async () => {
-    if (!confirm(`Delete "${equipment.name}"? This cannot be undone.`)) return;
-    await removeMutation.mutateAsync(id);
-    router.push('/equipments');
-  };
 
   return (
     <div className="space-y-6">
@@ -57,21 +53,36 @@ export function EquipmentDetailClient({ id }: { id: string }) {
           )}
           {canDelete && (
             <button
-              onClick={handleDelete}
-              disabled={removeMutation.isPending}
-              className="text-sm text-red-600 hover:text-red-700 disabled:opacity-40"
+              onClick={() => setDeleteOpen(true)}
+              className="text-sm text-red-600 hover:text-red-700"
             >
-              {removeMutation.isPending ? 'Deleting…' : 'Delete'}
+              Delete
             </button>
           )}
         </div>
       </div>
 
-      {removeMutation.isError && (
-        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">
-          {removeMutation.error.message}
-        </p>
-      )}
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        title="Delete equipment"
+        description={
+          <>
+            <strong className="text-gray-900">{equipment.name}</strong> will be
+            permanently removed.
+          </>
+        }
+        confirmLabel="Delete equipment"
+        isDeleting={removeMutation.isPending}
+        error={removeMutation.isError ? removeMutation.error.message : null}
+        onCancel={() => {
+          setDeleteOpen(false);
+          removeMutation.reset();
+        }}
+        onConfirm={async () => {
+          await removeMutation.mutateAsync(id);
+          router.push('/equipments');
+        }}
+      />
 
       {editing ? (
         <EditEquipmentForm

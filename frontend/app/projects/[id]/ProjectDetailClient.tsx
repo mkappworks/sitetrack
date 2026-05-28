@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -11,6 +12,8 @@ import { MaterialsTable } from '../../../components/MaterialsTable';
 import { ProjectLiveUpdates } from '../../../components/ProjectLiveUpdates';
 import { UpdateStatusForm } from '../../../components/UpdateStatusForm';
 import { AddMaterialForm } from '../../../components/AddMaterialForm';
+import { ConfirmDeleteModal } from '../../../components/ConfirmDeleteModal';
+import { EditProjectForm } from '../../../components/EditProjectForm';
 
 export function ProjectDetailClient({
   id,
@@ -26,14 +29,10 @@ export function ProjectDetailClient({
   );
   const removeMutation = useRemoveProject();
   const canDelete = session?.user.role === 'ADMIN';
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   if (!project) return null;
-
-  const handleDelete = async () => {
-    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
-    await removeMutation.mutateAsync(id);
-    router.push('/projects');
-  };
 
   return (
     <div className="space-y-6">
@@ -60,25 +59,55 @@ export function ProjectDetailClient({
 
         <div className="flex items-start gap-3">
           <ProjectLiveUpdates projectId={id} />
+          {canEdit && !editing && (
+            <button
+              onClick={() => setEditing(true)}
+              className="btn-secondary text-sm"
+            >
+              Edit
+            </button>
+          )}
           {canDelete && (
             <button
-              onClick={handleDelete}
-              disabled={removeMutation.isPending}
-              className="text-sm text-red-600 hover:text-red-700 disabled:opacity-40"
+              onClick={() => setDeleteOpen(true)}
+              className="text-sm text-red-600 hover:text-red-700"
             >
-              {removeMutation.isPending ? 'Deleting…' : 'Delete'}
+              Delete
             </button>
           )}
         </div>
       </div>
 
-      {removeMutation.isError && (
-        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">
-          {removeMutation.error.message}
-        </p>
+      <ConfirmDeleteModal
+        open={deleteOpen}
+        title="Delete project"
+        description={
+          <>
+            <strong className="text-gray-900">{project.name}</strong> and all of
+            its materials will be permanently removed.
+          </>
+        }
+        confirmLabel="Delete project"
+        isDeleting={removeMutation.isPending}
+        error={removeMutation.isError ? removeMutation.error.message : null}
+        onCancel={() => {
+          setDeleteOpen(false);
+          removeMutation.reset();
+        }}
+        onConfirm={async () => {
+          await removeMutation.mutateAsync(id);
+          router.push('/projects');
+        }}
+      />
+
+      {editing && (
+        <EditProjectForm
+          project={project}
+          onDone={() => setEditing(false)}
+        />
       )}
 
-      {canEdit && (
+      {canEdit && !editing && (
         <div className="card">
           <h2 className="text-sm font-medium text-gray-700 mb-3">Update status</h2>
           <UpdateStatusForm projectId={project.id} currentStatus={project.status} />

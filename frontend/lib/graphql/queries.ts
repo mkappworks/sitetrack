@@ -216,6 +216,12 @@ export const CREATE_MATERIAL_MUTATION = `
   }
 `;
 
+export const REMOVE_MATERIAL_MUTATION = `
+  mutation RemoveMaterial($id: ID!) {
+    removeMaterial(id: $id)
+  }
+`;
+
 export const UPDATE_MATERIAL_MUTATION = `
   mutation UpdateMaterial($id: ID!, $input: UpdateMaterialInput!) {
     updateMaterial(id: $id, input: $input) {

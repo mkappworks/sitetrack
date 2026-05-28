@@ -47,6 +47,14 @@ export const UpdateProjectStatusSchema = z.object({
 });
 export type UpdateProjectStatusInput = z.infer<typeof UpdateProjectStatusSchema>;
 
+export const UpdateProjectSchema = z.object({
+  id: z.uuid('Invalid project id'),
+  name: z.string().trim().min(3, 'Project name must be at least 3 characters'),
+  description: z.string().trim(),
+  location: z.string().trim(),
+});
+export type UpdateProjectFormInput = z.infer<typeof UpdateProjectSchema>;
+
 export const UpdateMaterialStatusSchema = z.object({
   id: z.uuid('Invalid material id'),
   status: MaterialStatusEnum,

@@ -9,18 +9,21 @@ import {
   REMOVE_PROJECT_MUTATION,
   CREATE_MATERIAL_MUTATION,
   UPDATE_MATERIAL_MUTATION,
+  REMOVE_MATERIAL_MUTATION,
 } from '../graphql/queries';
 import { z } from 'zod';
 import {
   CreateProjectSchema,
   CreateProjectWithMaterialsSchema,
   UpdateProjectStatusSchema,
+  UpdateProjectSchema,
   AddMaterialWithProjectSchema,
   UpdateMaterialStatusSchema,
   UpdateMaterialQuantityWithIdSchema,
   type CreateProjectFormInput,
   type CreateProjectWithMaterialsInput,
   type UpdateProjectStatusInput,
+  type UpdateProjectFormInput,
   type AddMaterialWithProjectInput,
   type UpdateMaterialStatusInput,
   type UpdateMaterialQuantityWithIdInput,
@@ -116,6 +119,34 @@ export async function updateProjectStatus(
   }
 }
 
+export async function updateProject(
+  input: UpdateProjectFormInput,
+): Promise<ActionResult<{ id: string; name: string }>> {
+  const parsed = parseInput(UpdateProjectSchema, input);
+  if (!parsed.ok) return parsed;
+
+  const { id, ...fields } = parsed.data;
+  const wireInput = {
+    name: fields.name,
+    description: fields.description || undefined,
+    location: fields.location || undefined,
+  };
+
+  const client = await gqlClient();
+  try {
+    const data = await client.request<{ updateProject: { id: string; name: string } }>(
+      UPDATE_PROJECT_MUTATION,
+      { id, input: wireInput },
+    );
+    revalidatePath('/dashboard');
+    revalidatePath('/projects');
+    revalidatePath(`/projects/${id}`);
+    return { ok: true, data: data.updateProject };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to update project' };
+  }
+}
+
 export async function addMaterial(
   input: AddMaterialWithProjectInput,
 ): Promise<ActionResult<{ id: string }>> {
@@ -154,6 +185,21 @@ export async function updateMaterialStatus(
 }
 
 const IdSchema = z.object({ id: z.uuid('Invalid id') });
+
+export async function removeMaterial(id: string): Promise<ActionResult<{ id: string }>> {
+  const parsed = IdSchema.safeParse({ id });
+  if (!parsed.success) return { ok: false, error: 'Invalid material id' };
+
+  const client = await gqlClient();
+  try {
+    await client.request<{ removeMaterial: boolean }>(REMOVE_MATERIAL_MUTATION, {
+      id: parsed.data.id,
+    });
+    return { ok: true, data: { id: parsed.data.id } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to remove material' };
+  }
+}
 
 export async function removeProject(id: string): Promise<ActionResult<{ id: string }>> {
   const parsed = IdSchema.safeParse({ id });

@@ -5,15 +5,18 @@ import { projectsKeys } from '../queries/projects';
 import {
   createProject,
   createProjectWithMaterials,
+  updateProject,
   updateProjectStatus,
   removeProject,
   addMaterial,
   updateMaterialStatus,
   updateMaterialQuantity,
+  removeMaterial,
 } from '../actions/project.actions';
 import type {
   CreateProjectFormInput,
   CreateProjectWithMaterialsInput,
+  UpdateProjectFormInput,
   UpdateProjectStatusInput,
   AddMaterialWithProjectInput,
   UpdateMaterialStatusInput,
@@ -44,6 +47,17 @@ export function useCreateProjectWithMaterials() {
       unwrap(createProjectWithMaterials(input)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectsKeys.all });
+    },
+  });
+}
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpdateProjectFormInput) => unwrap(updateProject(input)),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: projectsKeys.detail(data.id) });
+      queryClient.invalidateQueries({ queryKey: [...projectsKeys.all, 'list'] });
     },
   });
 }
@@ -124,6 +138,31 @@ export function useUpdateMaterialStatus(opts: { projectId: string }) {
           materials: old.materials?.map((m) =>
             m.id === input.id ? { ...m, status: input.status } : m,
           ),
+        } : old,
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: detailKey });
+    },
+  });
+}
+
+export function useRemoveMaterial(opts: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const detailKey = projectsKeys.detail(opts.projectId);
+  return useMutation({
+    mutationFn: (id: string) => unwrap(removeMaterial(id)),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const prev = queryClient.getQueryData<Project>(detailKey);
+      queryClient.setQueryData<Project>(detailKey, (old) =>
+        old ? {
+          ...old,
+          materials: old.materials?.filter((m) => m.id !== id),
         } : old,
       );
       return { prev };
