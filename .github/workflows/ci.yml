@@ -39,7 +39,9 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
 
       - name: Install backend dependencies
         working-directory: backend
@@ -48,6 +50,10 @@ jobs:
       - name: Lint backend
         working-directory: backend
         run: npm run lint
+
+      - name: Build backend (Nest compile + GraphQL schema regen)
+        working-directory: backend
+        run: npm run build
 
       - name: Run backend unit tests with coverage
         working-directory: backend
@@ -79,6 +85,18 @@ jobs:
       - name: Lint frontend
         working-directory: frontend
         run: npm run lint
+
+      - name: Run frontend unit tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Build frontend (type check + Next compile)
+        working-directory: frontend
+        env:
+          # Build-time public envs — same defaults the Dockerfile injects.
+          NEXT_PUBLIC_GRAPHQL_URL: http://localhost:3001/graphql
+          NEXT_PUBLIC_GRAPHQL_WS_URL: ws://localhost:3001/graphql
+        run: npm run build
 
   # ── Job 2: Build & Push Docker images ──────────────────────────────────────
   build:
