@@ -93,6 +93,13 @@ type Material {
   updatedAt: DateTime!
 }
 
+type MaterialPage {
+  items: [Material!]!
+  limit: Int!
+  offset: Int!
+  total: Int!
+}
+
 enum MaterialStatus {
   IN_TRANSIT
   ON_SITE
@@ -158,7 +165,7 @@ enum ProjectStatus {
 type Query {
   equipment(id: ID!): Equipment!
   equipments(limit: Int! = 20, offset: Int! = 0): EquipmentPage!
-  materialsByProject(projectId: ID!): [Material!]!
+  materialsByProject(limit: Int! = 20, offset: Int! = 0, projectId: ID!): MaterialPage!
 
   """The currently authenticated user"""
   me: User!

@@ -6,6 +6,8 @@ import { Material } from './entities/material.entity';
 import { InputType, Field, Float } from '@nestjs/graphql';
 import { IsString, IsNumber, IsEnum, IsUUID, IsOptional, Min } from 'class-validator';
 import { MaterialStatus } from './entities/material.entity';
+import { MaterialPage } from './dto/material-page.type';
+import { PaginationArgs } from '../common/pagination/paginated.type';
 
 @InputType()
 export class CreateMaterialInput {
@@ -31,8 +33,19 @@ export class MaterialsService {
     private readonly materialsRepo: Repository<Material>,
   ) {}
 
-  async findByProject(projectId: string): Promise<Material[]> {
-    return this.materialsRepo.find({ where: { projectId }, order: { createdAt: 'ASC' } });
+  async findByProject(
+    projectId: string,
+    pagination: PaginationArgs,
+  ): Promise<MaterialPage> {
+    // findAndCount returns [items, total]; total ignores skip/take so the
+    // pagination UI gets the true count of materials for THIS project.
+    const [items, total] = await this.materialsRepo.findAndCount({
+      where: { projectId },
+      order: { createdAt: 'ASC' },
+      take: pagination.limit,
+      skip: pagination.offset,
+    });
+    return { items, total, limit: pagination.limit, offset: pagination.offset };
   }
 
   async findOne(id: string): Promise<Material> {

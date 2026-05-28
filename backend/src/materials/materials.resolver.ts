@@ -3,6 +3,8 @@ import { Resolver, Query, Mutation, Args, ID } from '@nestjs/graphql';
 import { UseGuards } from '@nestjs/common';
 import { MaterialsService, CreateMaterialInput, UpdateMaterialInput } from './materials.service';
 import { Material } from './entities/material.entity';
+import { MaterialPage } from './dto/material-page.type';
+import { PaginationArgs } from '../common/pagination/paginated.type';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -12,10 +14,13 @@ import { UserRole } from '../users/entities/user.entity';
 export class MaterialsResolver {
   constructor(private readonly materialsService: MaterialsService) {}
 
-  @Query(() => [Material])
+  @Query(() => MaterialPage)
   @UseGuards(JwtAuthGuard)
-  materialsByProject(@Args('projectId', { type: () => ID }) projectId: string): Promise<Material[]> {
-    return this.materialsService.findByProject(projectId);
+  materialsByProject(
+    @Args('projectId', { type: () => ID }) projectId: string,
+    @Args() pagination: PaginationArgs,
+  ): Promise<MaterialPage> {
+    return this.materialsService.findByProject(projectId, pagination);
   }
 
   @Mutation(() => Material)
