@@ -10,22 +10,23 @@ import {
 
 export const equipmentsKeys = {
   all: ['equipments'] as const,
-  list: (limit: number, offset: number) =>
-    [...equipmentsKeys.all, 'list', { limit, offset }] as const,
+  list: (limit: number, offset: number, search: string | undefined) =>
+    [...equipmentsKeys.all, 'list', { limit, offset, search: search || undefined }] as const,
   detail: (id: string) => [...equipmentsKeys.all, 'detail', id] as const,
 };
 
 export function equipmentsQueryOptions(opts: {
   limit: number;
   offset: number;
+  search?: string;
   token?: string;
 }) {
   return queryOptions({
-    queryKey: equipmentsKeys.list(opts.limit, opts.offset),
+    queryKey: equipmentsKeys.list(opts.limit, opts.offset, opts.search),
     queryFn: async (): Promise<EquipmentsResponse['equipments']> => {
       const raw = await gqlFetch<unknown>(
         EQUIPMENTS_QUERY,
-        { limit: opts.limit, offset: opts.offset },
+        { limit: opts.limit, offset: opts.offset, search: opts.search || null },
         opts.token,
       );
       return EquipmentsResponseSchema.parse(raw).equipments;

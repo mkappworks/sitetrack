@@ -118,8 +118,8 @@ export const ME_QUERY = `
 `;
 
 export const EQUIPMENTS_QUERY = `
-  query Equipments($limit: Int!, $offset: Int!) {
-    equipments(limit: $limit, offset: $offset) {
+  query Equipments($limit: Int!, $offset: Int!, $search: String) {
+    equipments(limit: $limit, offset: $offset, search: $search) {
       items {
         id
         name

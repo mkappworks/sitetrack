@@ -31,7 +31,11 @@ export class EquipmentsService {
     return this.equipmentRepo.save(equipment);
   }
 
-  async findAll(user: User, pagination: PaginationArgs): Promise<EquipmentPage> {
+  async findAll(
+    user: User,
+    pagination: PaginationArgs,
+    search?: string | null,
+  ): Promise<EquipmentPage> {
     const qb = this.equipmentRepo
       .createQueryBuilder("equipment")
       .leftJoinAndSelect("equipment.manager", "manager")
@@ -40,7 +44,14 @@ export class EquipmentsService {
     // Filter MUST be applied before take/skip so total reflects only the
     // manager's rows, not the global table.
     if (user.role === UserRole.MANAGER) {
-      qb.where("equipment.managerId = :userId", { userId: user.id });
+      qb.andWhere("equipment.managerId = :userId", { userId: user.id });
+    }
+
+    const trimmedSearch = search?.trim();
+    if (trimmedSearch) {
+      qb.andWhere("LOWER(equipment.name) LIKE LOWER(:search)", {
+        search: `%${trimmedSearch}%`,
+      });
     }
 
     const [items, total] = await qb

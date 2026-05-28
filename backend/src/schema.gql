@@ -165,7 +165,7 @@ enum ProjectStatus {
 
 type Query {
   equipment(id: ID!): Equipment!
-  equipments(limit: Int! = 20, offset: Int! = 0): EquipmentPage!
+  equipments(limit: Int! = 20, offset: Int! = 0, search: String): EquipmentPage!
   materialsByProject(limit: Int! = 20, offset: Int! = 0, projectId: ID!): MaterialPage!
 
   """The currently authenticated user"""
