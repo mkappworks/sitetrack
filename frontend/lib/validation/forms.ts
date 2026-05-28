@@ -33,11 +33,14 @@ export const MaterialStatusEnum = z.enum([
 
 // Empty-string-allowed (non-optional) keeps TanStack Form's Standard Schema
 // interop happy; project.actions strips '' to undefined before the wire.
+// managerId follows the same pattern — admins pick from a dropdown, '' means
+// unassigned; non-admins submit '' and the backend keeps the existing manager.
 export const CreateProjectSchema = z.object({
   name: z.string().trim().min(3, 'Project name must be at least 3 characters'),
   description: z.string().trim(),
   location: z.string().trim(),
   status: ProjectStatusEnum,
+  managerId: z.string(),
 });
 export type CreateProjectFormInput = z.infer<typeof CreateProjectSchema>;
 
@@ -52,6 +55,7 @@ export const UpdateProjectSchema = z.object({
   name: z.string().trim().min(3, 'Project name must be at least 3 characters'),
   description: z.string().trim(),
   location: z.string().trim(),
+  managerId: z.string(),
 });
 export type UpdateProjectFormInput = z.infer<typeof UpdateProjectSchema>;
 
@@ -82,6 +86,7 @@ export const CreateProjectWithMaterialsSchema = z.object({
   description: z.string().trim(),
   location: z.string().trim(),
   status: ProjectStatusEnum,
+  managerId: z.string(),
   materials: z.array(ProjectMaterialItemSchema)
     .min(1, 'Add at least one material'),
 });
@@ -91,6 +96,7 @@ export type ProjectMaterialItem = z.infer<typeof ProjectMaterialItemSchema>;
 export const CreateEquipmentSchema = z.object({
   name: z.string().trim().min(3, 'Equipment name must be at least 3 characters'),
   description: z.string().trim(),
+  managerId: z.string(),
 });
 export type CreateEquipmentFormInput = z.infer<typeof CreateEquipmentSchema>;
 
@@ -98,5 +104,6 @@ export const UpdateEquipmentSchema = z.object({
   id: z.uuid('Invalid equipment id'),
   name: z.string().trim().min(3, 'Equipment name must be at least 3 characters'),
   description: z.string().trim(),
+  managerId: z.string(),
 });
 export type UpdateEquipmentInput = z.infer<typeof UpdateEquipmentSchema>;

@@ -36,6 +36,13 @@ export class UsersResolver {
     return user;
   }
 
+  @Query(() => [User], { description: 'All MANAGER-role users (for assignment dropdowns) — Admin only' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  managers(): Promise<User[]> {
+    return this.usersService.findManagers();
+  }
+
   // --- Mutations ---
 
   @Mutation(() => User, { description: 'Create a new user — Admin only' })

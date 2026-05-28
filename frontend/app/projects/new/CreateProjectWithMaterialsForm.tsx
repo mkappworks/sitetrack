@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from '@tanstack/react-form';
 import { useCreateProjectWithMaterials } from '../../../lib/mutations/projects';
 import { CreateProjectWithMaterialsSchema } from '../../../lib/validation/forms';
+import { ManagerSelect } from '../../../components/ManagerSelect';
 
 const PROJECT_STATUSES = ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'] as const;
 
@@ -17,6 +18,7 @@ export function CreateProjectWithMaterialsForm() {
       description: '',
       location: '',
       status: 'PLANNING' as (typeof PROJECT_STATUSES)[number],
+      managerId: '',
       materials: [{ name: '', quantity: 0, unit: '' }],
     },
     validators: { onChange: CreateProjectWithMaterialsSchema },
@@ -100,6 +102,17 @@ export function CreateProjectWithMaterialsForm() {
             )}
           </form.Field>
         </div>
+
+        <form.Field name="managerId">
+          {(field) => (
+            <ManagerSelect
+              label="Assign to manager"
+              value={field.state.value}
+              onChange={field.handleChange}
+              onBlur={field.handleBlur}
+            />
+          )}
+        </form.Field>
       </section>
 
       <section className="card space-y-4">

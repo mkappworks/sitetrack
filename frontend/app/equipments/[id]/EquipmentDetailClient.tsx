@@ -13,6 +13,7 @@ import {
 } from '../../../lib/mutations/equipments';
 import { UpdateEquipmentSchema } from '../../../lib/validation/forms';
 import { ConfirmDeleteModal } from '../../../components/ConfirmDeleteModal';
+import { ManagerSelect } from '../../../components/ManagerSelect';
 
 export function EquipmentDetailClient({ id }: { id: string }) {
   const router = useRouter();
@@ -122,7 +123,12 @@ function EditEquipmentForm({
   equipment,
   onDone,
 }: {
-  equipment: { id: string; name: string; description?: string | null };
+  equipment: {
+    id: string;
+    name: string;
+    description?: string | null;
+    manager?: { id: string } | null;
+  };
   onDone: () => void;
 }) {
   const mutation = useUpdateEquipment();
@@ -131,6 +137,7 @@ function EditEquipmentForm({
       id: equipment.id,
       name: equipment.name,
       description: equipment.description ?? '',
+      managerId: equipment.manager?.id ?? '',
     },
     validators: { onChange: UpdateEquipmentSchema },
     onSubmit: async ({ value }) => {
@@ -176,6 +183,17 @@ function EditEquipmentForm({
               onChange={(e) => field.handleChange(e.target.value)}
             />
           </div>
+        )}
+      </form.Field>
+
+      <form.Field name="managerId">
+        {(field) => (
+          <ManagerSelect
+            label="Manager"
+            value={field.state.value}
+            onChange={field.handleChange}
+            onBlur={field.handleBlur}
+          />
         )}
       </form.Field>
 

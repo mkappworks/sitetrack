@@ -171,6 +171,9 @@ type ProjectStatusCount {
 type Query {
   equipment(id: ID!): Equipment!
   equipments(limit: Int! = 20, offset: Int! = 0, search: String): EquipmentPage!
+
+  """All MANAGER-role users (for assignment dropdowns) — Admin only"""
+  managers: [User!]!
   materialsByProject(limit: Int! = 20, offset: Int! = 0, projectId: ID!): MaterialPage!
 
   """The currently authenticated user"""

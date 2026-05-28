@@ -57,6 +57,7 @@ export async function createProject(
     ...parsed.data,
     description: parsed.data.description || undefined,
     location: parsed.data.location || undefined,
+    managerId: parsed.data.managerId || undefined,
   };
 
   const client = await gqlClient();
@@ -83,6 +84,7 @@ export async function createProjectWithMaterials(
     ...parsed.data,
     description: parsed.data.description || undefined,
     location: parsed.data.location || undefined,
+    managerId: parsed.data.managerId || undefined,
   };
 
   const client = await gqlClient();
@@ -130,6 +132,7 @@ export async function updateProject(
     name: fields.name,
     description: fields.description || undefined,
     location: fields.location || undefined,
+    managerId: fields.managerId || undefined,
   };
 
   const client = await gqlClient();

@@ -80,6 +80,10 @@ export const UsersResponseSchema = z.object({
   users: PaginatedShape(UserSchema),
 });
 
+export const ManagersResponseSchema = z.object({
+  managers: z.array(ManagerSchema),
+});
+
 export const EquipmentsResponseSchema = z.object({
   equipments: PaginatedShape(EquipmentSchema),
 });

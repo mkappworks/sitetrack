@@ -30,6 +30,7 @@ export async function createEquipment(
   const wireInput = {
     ...parsed.data,
     description: parsed.data.description || undefined,
+    managerId: parsed.data.managerId || undefined,
   };
 
   const client = await gqlClient();
@@ -60,6 +61,7 @@ export async function updateEquipment(
   const wireInput = {
     name: fields.name,
     description: fields.description || undefined,
+    managerId: fields.managerId || undefined,
   };
 
   const client = await gqlClient();

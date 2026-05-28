@@ -4,13 +4,14 @@ import { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
 import { useCreateEquipment } from '../lib/mutations/equipments';
 import { CreateEquipmentSchema } from '../lib/validation/forms';
+import { ManagerSelect } from './ManagerSelect';
 
 export function CreateEquipmentButton() {
   const [open, setOpen] = useState(false);
   const mutation = useCreateEquipment();
 
   const form = useForm({
-    defaultValues: { name: '', description: '' },
+    defaultValues: { name: '', description: '', managerId: '' },
     validators: { onChange: CreateEquipmentSchema },
     onSubmit: async ({ value }) => {
       await mutation.mutateAsync(value);
@@ -72,6 +73,17 @@ export function CreateEquipmentButton() {
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
               </div>
+            )}
+          </form.Field>
+
+          <form.Field name="managerId">
+            {(field) => (
+              <ManagerSelect
+                label="Assign to manager"
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+              />
             )}
           </form.Field>
 

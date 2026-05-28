@@ -60,6 +60,13 @@ export class UsersService {
     return this.usersRepo.findBy({ id: In(ids) });
   }
 
+  async findManagers(): Promise<User[]> {
+    return this.usersRepo.find({
+      where: { role: UserRole.MANAGER },
+      order: { name: 'ASC' },
+    });
+  }
+
   async update(id: string, input: UpdateUserInput): Promise<User> {
     const user = await this.findOne(id);
     // ValidationPipe + useDefineForClassFields materializes optional fields

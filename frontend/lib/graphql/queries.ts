@@ -196,6 +196,16 @@ export const REMOVE_PROJECT_MUTATION = `
   }
 `;
 
+export const MANAGERS_QUERY = `
+  query Managers {
+    managers {
+      id
+      name
+      email
+    }
+  }
+`;
+
 export const USERS_QUERY = `
   query Users($limit: Int!, $offset: Int!) {
     users(limit: $limit, offset: $offset) {

@@ -3,6 +3,7 @@
 import { useForm } from '@tanstack/react-form';
 import { useUpdateProject } from '../lib/mutations/projects';
 import { UpdateProjectSchema } from '../lib/validation/forms';
+import { ManagerSelect } from './ManagerSelect';
 
 interface Props {
   project: {
@@ -10,6 +11,7 @@ interface Props {
     name: string;
     description?: string | null;
     location?: string | null;
+    manager?: { id: string } | null;
   };
   onDone: () => void;
 }
@@ -23,6 +25,7 @@ export function EditProjectForm({ project, onDone }: Props) {
       name: project.name,
       description: project.description ?? '',
       location: project.location ?? '',
+      managerId: project.manager?.id ?? '',
     },
     validators: { onChange: UpdateProjectSchema },
     onSubmit: async ({ value }) => {
@@ -82,6 +85,17 @@ export function EditProjectForm({ project, onDone }: Props) {
               onChange={(e) => field.handleChange(e.target.value)}
             />
           </label>
+        )}
+      </form.Field>
+
+      <form.Field name="managerId">
+        {(field) => (
+          <ManagerSelect
+            label="Manager"
+            value={field.state.value}
+            onChange={field.handleChange}
+            onBlur={field.handleBlur}
+          />
         )}
       </form.Field>
 

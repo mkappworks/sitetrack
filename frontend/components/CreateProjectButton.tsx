@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useForm } from '@tanstack/react-form';
 import { useCreateProject } from '../lib/mutations/projects';
 import { CreateProjectSchema } from '../lib/validation/forms';
+import { ManagerSelect } from './ManagerSelect';
 
 export function CreateProjectButton() {
   const [open, setOpen] = useState(false);
@@ -16,6 +17,7 @@ export function CreateProjectButton() {
       description: '',
       location: '',
       status: 'PLANNING' as 'PLANNING' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'CANCELLED',
+      managerId: '',
     },
     validators: { onChange: CreateProjectSchema },
     onSubmit: async ({ value }) => {
@@ -119,6 +121,17 @@ export function CreateProjectButton() {
                   <option value="ACTIVE">Active</option>
                 </select>
               </label>
+            )}
+          </form.Field>
+
+          <form.Field name="managerId">
+            {(field) => (
+              <ManagerSelect
+                label="Assign to manager"
+                value={field.state.value}
+                onChange={field.handleChange}
+                onBlur={field.handleBlur}
+              />
             )}
           </form.Field>
 

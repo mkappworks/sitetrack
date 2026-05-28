@@ -45,6 +45,7 @@ describe('CreateProjectButton', () => {
         description: 'Phase 2 work',
         location: 'Vancouver, BC',
         status: 'PLANNING',
+        managerId: '',
       });
     });
 
