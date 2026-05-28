@@ -171,7 +171,7 @@ type Query {
   """The currently authenticated user"""
   me: User!
   project(id: ID!): Project!
-  projects(limit: Int! = 20, offset: Int! = 0): ProjectPage!
+  projects(limit: Int! = 20, offset: Int! = 0, search: String): ProjectPage!
 
   """Get a specific user by ID — Admin only. Non-admins use `me` for self."""
   user(id: ID!): User!

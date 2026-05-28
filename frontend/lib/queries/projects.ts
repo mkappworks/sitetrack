@@ -10,22 +10,23 @@ import {
 
 export const projectsKeys = {
   all: ['projects'] as const,
-  list: (limit: number, offset: number) =>
-    [...projectsKeys.all, 'list', { limit, offset }] as const,
+  list: (limit: number, offset: number, search: string | undefined) =>
+    [...projectsKeys.all, 'list', { limit, offset, search: search || undefined }] as const,
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
 };
 
 export function projectsQueryOptions(opts: {
   limit: number;
   offset: number;
+  search?: string;
   token?: string;
 }) {
   return queryOptions({
-    queryKey: projectsKeys.list(opts.limit, opts.offset),
+    queryKey: projectsKeys.list(opts.limit, opts.offset, opts.search),
     queryFn: async (): Promise<ProjectsResponse['projects']> => {
       const raw = await gqlFetch<unknown>(
         PROJECTS_QUERY,
-        { limit: opts.limit, offset: opts.offset },
+        { limit: opts.limit, offset: opts.offset, search: opts.search || null },
         opts.token,
       );
       return ProjectsResponseSchema.parse(raw).projects;

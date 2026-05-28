@@ -21,7 +21,11 @@ export class ProjectsService {
     private readonly dataSource: DataSource,
   ) {}
 
-  async findAll(user: User, pagination: PaginationArgs): Promise<ProjectPage> {
+  async findAll(
+    user: User,
+    pagination: PaginationArgs,
+    search?: string | null,
+  ): Promise<ProjectPage> {
     const qb = this.projectsRepo
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.manager', 'manager')
@@ -30,7 +34,14 @@ export class ProjectsService {
     // Filter MUST be applied before take/skip so total reflects only the
     // manager's rows, not the global table.
     if (user.role === UserRole.MANAGER) {
-      qb.where('project.managerId = :userId', { userId: user.id });
+      qb.andWhere('project.managerId = :userId', { userId: user.id });
+    }
+
+    const trimmedSearch = search?.trim();
+    if (trimmedSearch) {
+      qb.andWhere('LOWER(project.name) LIKE LOWER(:search)', {
+        search: `%${trimmedSearch}%`,
+      });
     }
 
     const [items, total] = await qb

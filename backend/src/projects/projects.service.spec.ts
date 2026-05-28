@@ -196,11 +196,11 @@ describe("ProjectsService", () => {
     });
   });
 
-  describe("findAll (paginated)", () => {
+  describe("findAll (paginated + searchable)", () => {
     let queryBuilder: {
       leftJoinAndSelect: jest.Mock;
       orderBy: jest.Mock;
-      where: jest.Mock;
+      andWhere: jest.Mock;
       take: jest.Mock;
       skip: jest.Mock;
       getManyAndCount: jest.Mock;
@@ -210,18 +210,18 @@ describe("ProjectsService", () => {
       queryBuilder = {
         leftJoinAndSelect: jest.fn().mockReturnThis(),
         orderBy: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
-          getManyAndCount: jest.fn().mockResolvedValue([[mockProject], 1]),
+        getManyAndCount: jest.fn().mockResolvedValue([[mockProject], 1]),
       };
       projectsRepo.createQueryBuilder!.mockReturnValue(queryBuilder);
     });
 
-    it("admin sees all projects, paginated, with total count", async () => {
+    it("admin sees all projects, paginated, with total count, no filters when search empty", async () => {
       const result = await projectService.findAll(mockAdmin, { limit: 20, offset: 0 });
 
-      expect(queryBuilder.where).not.toHaveBeenCalled();
+      expect(queryBuilder.andWhere).not.toHaveBeenCalled();
       expect(queryBuilder.take).toHaveBeenCalledWith(20);
       expect(queryBuilder.skip).toHaveBeenCalledWith(0);
       expect(queryBuilder.getManyAndCount).toHaveBeenCalledTimes(1);
@@ -236,13 +236,51 @@ describe("ProjectsService", () => {
     it("manager only sees projects they manage (filter applied before pagination)", async () => {
       await projectService.findAll(mockManager, { limit: 10, offset: 40 });
 
-      expect(queryBuilder.where).toHaveBeenCalledWith(
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
         "project.managerId = :userId",
         { userId: "manager-1" },
       );
-      // Filter is applied BEFORE take/skip so count reflects only the manager's rows.
       expect(queryBuilder.take).toHaveBeenCalledWith(10);
       expect(queryBuilder.skip).toHaveBeenCalledWith(40);
+    });
+
+    it("search adds a case-insensitive LIKE filter on project.name (and trims whitespace)", async () => {
+      await projectService.findAll(
+        mockAdmin,
+        { limit: 20, offset: 0 },
+        "  Tower  ",
+      );
+
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+        "LOWER(project.name) LIKE LOWER(:search)",
+        { search: "%Tower%" },
+      );
+    });
+
+    it("ignores empty / whitespace-only search (no filter added)", async () => {
+      await projectService.findAll(mockAdmin, { limit: 20, offset: 0 }, "   ");
+
+      expect(queryBuilder.andWhere).not.toHaveBeenCalled();
+    });
+
+    it("combines manager filter AND search when both apply", async () => {
+      await projectService.findAll(
+        mockManager,
+        { limit: 20, offset: 0 },
+        "Phase 1",
+      );
+
+      expect(queryBuilder.andWhere).toHaveBeenCalledTimes(2);
+      expect(queryBuilder.andWhere).toHaveBeenNthCalledWith(
+        1,
+        "project.managerId = :userId",
+        { userId: "manager-1" },
+      );
+      expect(queryBuilder.andWhere).toHaveBeenNthCalledWith(
+        2,
+        "LOWER(project.name) LIKE LOWER(:search)",
+        { search: "%Phase 1%" },
+      );
     });
   });
 

@@ -7,8 +7,8 @@
 // for every project on the page, which scales linearly with project count
 // AND materials per project. Detail page (PROJECT_QUERY) still selects them.
 export const PROJECTS_QUERY = `
-  query Projects($limit: Int!, $offset: Int!) {
-    projects(limit: $limit, offset: $offset) {
+  query Projects($limit: Int!, $offset: Int!, $search: String) {
+    projects(limit: $limit, offset: $offset, search: $search) {
       items {
         id
         name

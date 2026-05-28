@@ -32,9 +32,10 @@ export class ProjectsResolver {
   @UseGuards(JwtAuthGuard)
   projects(
     @Args() pagination: PaginationArgs,
+    @Args('search', { nullable: true, type: () => String }) search: string | null,
     @CurrentUser() user: User,
   ): Promise<ProjectPage> {
-    return this.projectsService.findAll(user, pagination);
+    return this.projectsService.findAll(user, pagination, search);
   }
 
   @Query(() => Project)
