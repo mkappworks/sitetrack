@@ -39,12 +39,34 @@ export class Project {
   @Column({ length: 255, nullable: true })
   location?: string;
 
+  // Postgres `date` columns come back from the pg driver as strings
+  // ("YYYY-MM-DD"), but the GraphQL DateTime scalar requires JS Date objects.
+  // The read transformer bridges the gap; the write side is a no-op since
+  // the driver accepts Date directly.
+  // Caveat: new Date('YYYY-MM-DD') is parsed as UTC midnight — fine here, but
+  // a production-grade fix would be a LocalDate scalar.
   @Field({ nullable: true })
-  @Column({ name: 'start_date', type: 'date', nullable: true })
+  @Column({
+    name: 'start_date',
+    type: 'date',
+    nullable: true,
+    transformer: {
+      from: (v: string | null): Date | null => (v ? new Date(v) : null),
+      to: (v: Date | undefined) => v,
+    },
+  })
   startDate?: Date;
 
   @Field({ nullable: true })
-  @Column({ name: 'end_date', type: 'date', nullable: true })
+  @Column({
+    name: 'end_date',
+    type: 'date',
+    nullable: true,
+    transformer: {
+      from: (v: string | null): Date | null => (v ? new Date(v) : null),
+      to: (v: Date | undefined) => v,
+    },
+  })
   endDate?: Date;
 
   // manager_id FK — not exposed directly in GraphQL, use manager resolver field
