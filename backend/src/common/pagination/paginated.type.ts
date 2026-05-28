@@ -1,6 +1,6 @@
 import { Type } from '@nestjs/common';
 import { ArgsType, Field, Int, ObjectType } from '@nestjs/graphql';
-import { IsInt, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 // isAbstract keeps the base out of the schema — only concrete subclasses
 // (e.g. `class ProjectPage extends Paginated(Project) {}`) appear as types.
@@ -35,4 +35,12 @@ export class PaginationArgs {
   @IsInt()
   @Min(0)
   offset: number = 0;
+}
+
+@ArgsType()
+export class SearchablePaginationArgs extends PaginationArgs {
+  @Field({ nullable: true })
+  @IsOptional()
+  @IsString()
+  search?: string;
 }

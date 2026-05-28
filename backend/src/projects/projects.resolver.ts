@@ -11,7 +11,7 @@ import {
   UpdateProjectInput,
 } from './dto/project.input';
 import { ProjectPage } from './dto/project-page.type';
-import { PaginationArgs } from '../common/pagination/paginated.type';
+import { SearchablePaginationArgs } from '../common/pagination/paginated.type';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -31,11 +31,10 @@ export class ProjectsResolver {
   @Query(() => ProjectPage)
   @UseGuards(JwtAuthGuard)
   projects(
-    @Args() pagination: PaginationArgs,
-    @Args('search', { nullable: true, type: () => String }) search: string | null,
+    @Args() args: SearchablePaginationArgs,
     @CurrentUser() user: User,
   ): Promise<ProjectPage> {
-    return this.projectsService.findAll(user, pagination, search);
+    return this.projectsService.findAll(user, args, args.search);
   }
 
   @Query(() => Project)
