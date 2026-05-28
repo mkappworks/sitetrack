@@ -18,6 +18,7 @@ const createMockRepository = <
   create: jest.fn(),
   save: jest.fn(),
   remove: jest.fn(),
+  softRemove: jest.fn(),
   createQueryBuilder: jest.fn(),
 });
 
@@ -174,12 +175,12 @@ describe("ProjectsService", () => {
   describe("remove", () => {
     it("admin can remove any project", async () => {
       projectsRepo.findOne!.mockResolvedValue({ ...mockProject });
-      projectsRepo.remove!.mockResolvedValue({ ...mockProject });
+      projectsRepo.softRemove!.mockResolvedValue({ ...mockProject });
 
       const result = await projectService.remove("project-1", mockAdmin);
 
       expect(result).toBe(true);
-      expect(projectsRepo.remove).toHaveBeenCalledTimes(1);
+      expect(projectsRepo.softRemove).toHaveBeenCalledTimes(1);
     });
 
     it("throws ForbiddenException when manager tries to remove another's project", async () => {
@@ -192,7 +193,7 @@ describe("ProjectsService", () => {
       await expect(
         projectService.remove("project-1", mockManager),
       ).rejects.toThrow(ForbiddenException);
-      expect(projectsRepo.remove).not.toHaveBeenCalled();
+      expect(projectsRepo.softRemove).not.toHaveBeenCalled();
     });
   });
 

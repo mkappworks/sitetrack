@@ -1,6 +1,6 @@
 import {
   Entity, PrimaryGeneratedColumn, Column,
-  CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn,
+  CreateDateColumn, UpdateDateColumn, DeleteDateColumn, ManyToOne, JoinColumn,
 } from 'typeorm';
 import { ObjectType, Field, ID, Float, registerEnumType } from '@nestjs/graphql';
 import { Project } from '../../projects/entities/project.entity';
@@ -54,4 +54,7 @@ export class Material {
   @Field()
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 }

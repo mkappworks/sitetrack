@@ -1,6 +1,6 @@
 import {
   Entity, PrimaryGeneratedColumn, Column, CreateDateColumn,
-  UpdateDateColumn, ManyToOne, OneToMany, JoinColumn,
+  UpdateDateColumn, DeleteDateColumn, ManyToOne, OneToMany, JoinColumn,
 } from 'typeorm';
 import { ObjectType, Field, ID, Int, registerEnumType } from '@nestjs/graphql';
 import { User } from '../../users/entities/user.entity';
@@ -73,9 +73,14 @@ export class Project {
   @JoinColumn({ name: 'manager_id' })
   manager?: User;
 
+  // softCascade: TypeORM soft-removes materials when the parent project is
+  // soft-removed via service.softRemove().
   @Field(() => [Material], { nullable: true })
-  @OneToMany(() => Material, (material) => material.project)
+  @OneToMany(() => Material, (material) => material.project, { cascade: ['soft-remove'] })
   materials?: Material[];
+
+  @DeleteDateColumn({ name: 'deleted_at' })
+  deletedAt?: Date;
 
   // Derived, not stored — no @Column. Resolved by @ResolveField in
   // project-materials.resolver via MaterialCountByProjectLoader.

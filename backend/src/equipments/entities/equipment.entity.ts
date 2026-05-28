@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   ManyToOne,
   JoinColumn,
   Index,
@@ -43,4 +44,7 @@ export class Equipment {
   @Field()
   @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
+
+  @DeleteDateColumn({ name: "deleted_at" })
+  deletedAt?: Date;
 }

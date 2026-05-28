@@ -17,6 +17,7 @@ const createMockRepository = <
   create: jest.fn(),
   save: jest.fn(),
   remove: jest.fn(),
+  softRemove: jest.fn(),
   createQueryBuilder: jest.fn(),
 });
 
@@ -204,12 +205,12 @@ describe("EquipmentsService", () => {
   describe("remove", () => {
     it("admin can remove any equipment", async () => {
       equipmentRepo.findOne!.mockResolvedValue({ ...mockEquipment });
-      equipmentRepo.remove!.mockResolvedValue({ ...mockEquipment });
+      equipmentRepo.softRemove!.mockResolvedValue({ ...mockEquipment });
 
       const result = await equipmentsService.remove("equipment-1", mockAdmin);
 
       expect(result).toBe(true);
-      expect(equipmentRepo.remove).toHaveBeenCalledTimes(1);
+      expect(equipmentRepo.softRemove).toHaveBeenCalledTimes(1);
     });
 
     it("throws ForbiddenException when manager tries to remove another's equipment", async () => {
@@ -222,7 +223,7 @@ describe("EquipmentsService", () => {
       await expect(
         equipmentsService.remove("equipment-1", mockManager),
       ).rejects.toThrow(ForbiddenException);
-      expect(equipmentRepo.remove).not.toHaveBeenCalled();
+      expect(equipmentRepo.softRemove).not.toHaveBeenCalled();
     });
   });
 

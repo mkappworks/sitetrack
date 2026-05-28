@@ -66,7 +66,7 @@ export class MaterialsService {
   }
 
   async remove(id: string): Promise<boolean> {
-    await this.materialsRepo.remove(await this.findOne(id));
+    await this.materialsRepo.softRemove(await this.findOne(id));
     return true;
   }
 }

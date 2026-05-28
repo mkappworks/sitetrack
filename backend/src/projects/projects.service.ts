@@ -124,9 +124,12 @@ export class ProjectsService {
   }
 
   async remove(id: string, currentUser: User): Promise<boolean> {
+    // softRemove stamps deleted_at via @DeleteDateColumn; default find()
+    // queries filter the row out automatically. Materials cascade via
+    // cascade: ['soft-remove'] on the OneToMany relation.
     const project = await this.findOne(id);
     this.assertCanModify(project, currentUser);
-    await this.projectsRepo.remove(project);
+    await this.projectsRepo.softRemove(project);
     return true;
   }
 

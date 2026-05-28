@@ -90,7 +90,7 @@ export class EquipmentsService {
   async remove(id: string, currentUser: User): Promise<boolean> {
     const equipment = await this.findOne(id);
     this.assertCanModify(equipment, currentUser);
-    await this.equipmentRepo.remove(equipment);
+    await this.equipmentRepo.softRemove(equipment);
     return true;
   }
 
