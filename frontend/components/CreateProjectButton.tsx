@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useForm } from '@tanstack/react-form';
 import { useCreateProject } from '../lib/mutations/projects';
 import { CreateProjectSchema } from '../lib/validation/forms';
@@ -41,7 +42,16 @@ export function CreateProjectButton() {
         className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-base font-semibold mb-4">New project</h2>
+        <div className="mb-4 flex items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold">New project</h2>
+          <Link
+            href="/projects/new"
+            className="text-xs text-blue-600 hover:text-blue-700"
+            onClick={() => setOpen(false)}
+          >
+            with materials →
+          </Link>
+        </div>
         <form
           onSubmit={(e) => {
             e.preventDefault();

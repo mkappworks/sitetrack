@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { projectByIdQueryOptions } from '../../../lib/queries/projects';
+import { useRemoveProject } from '../../../lib/mutations/projects';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { MaterialsTable } from '../../../components/MaterialsTable';
 import { ProjectLiveUpdates } from '../../../components/ProjectLiveUpdates';
@@ -17,12 +19,21 @@ export function ProjectDetailClient({
   id: string;
   canEdit: boolean;
 }) {
+  const router = useRouter();
   const { data: session } = useSession();
   const { data: project } = useQuery(
     projectByIdQueryOptions({ id, token: session?.accessToken }),
   );
+  const removeMutation = useRemoveProject();
+  const canDelete = session?.user.role === 'ADMIN';
 
   if (!project) return null;
+
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
+    await removeMutation.mutateAsync(id);
+    router.push('/projects');
+  };
 
   return (
     <div className="space-y-6">
@@ -47,8 +58,25 @@ export function ProjectDetailClient({
           </div>
         </div>
 
-        <ProjectLiveUpdates projectId={id} />
+        <div className="flex items-start gap-3">
+          <ProjectLiveUpdates projectId={id} />
+          {canDelete && (
+            <button
+              onClick={handleDelete}
+              disabled={removeMutation.isPending}
+              className="text-sm text-red-600 hover:text-red-700 disabled:opacity-40"
+            >
+              {removeMutation.isPending ? 'Deleting…' : 'Delete'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {removeMutation.isError && (
+        <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">
+          {removeMutation.error.message}
+        </p>
+      )}
 
       {canEdit && (
         <div className="card">

@@ -165,6 +165,28 @@ export const CREATE_EQUIPMENT_MUTATION = `
   }
 `;
 
+export const UPDATE_EQUIPMENT_MUTATION = `
+  mutation UpdateEquipment($id: ID!, $input: UpdateEquipmentInput!) {
+    updateEquipment(id: $id, input: $input) {
+      id
+      name
+      description
+    }
+  }
+`;
+
+export const REMOVE_EQUIPMENT_MUTATION = `
+  mutation RemoveEquipment($id: ID!) {
+    removeEquipment(id: $id)
+  }
+`;
+
+export const REMOVE_PROJECT_MUTATION = `
+  mutation RemoveProject($id: ID!) {
+    removeProject(id: $id)
+  }
+`;
+
 export const USERS_QUERY = `
   query Users($limit: Int!, $offset: Int!) {
     users(limit: $limit, offset: $offset) {

@@ -85,3 +85,10 @@ export const CreateEquipmentSchema = z.object({
   description: z.string().trim(),
 });
 export type CreateEquipmentFormInput = z.infer<typeof CreateEquipmentSchema>;
+
+export const UpdateEquipmentSchema = z.object({
+  id: z.uuid('Invalid equipment id'),
+  name: z.string().trim().min(3, 'Equipment name must be at least 3 characters'),
+  description: z.string().trim(),
+});
+export type UpdateEquipmentInput = z.infer<typeof UpdateEquipmentSchema>;

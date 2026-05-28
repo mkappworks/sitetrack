@@ -2,8 +2,20 @@
 
 import { useState } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { useUpdateMaterialQuantity } from '../lib/mutations/projects';
+import {
+  useUpdateMaterialQuantity,
+  useUpdateMaterialStatus,
+} from '../lib/mutations/projects';
 import { UpdateMaterialQuantitySchema } from '../lib/validation/forms';
+
+const MATERIAL_STATUSES = [
+  'ORDERED',
+  'IN_TRANSIT',
+  'ON_SITE',
+  'USED',
+  'RETURNED',
+] as const;
+type MaterialStatus = (typeof MATERIAL_STATUSES)[number];
 
 const materialStatusColors: Record<string, string> = {
   ORDERED:    'bg-gray-100 text-gray-600',
@@ -59,9 +71,13 @@ export function MaterialsTable({
                   {m.quantity} {m.unit}
                 </td>
                 <td className="py-2.5 pr-4">
-                  <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-md ${materialStatusColors[m.status] ?? ''}`}>
-                    {m.status.replace('_', ' ')}
-                  </span>
+                  {canEdit ? (
+                    <StatusSelect material={m} projectId={projectId} />
+                  ) : (
+                    <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-md ${materialStatusColors[m.status] ?? ''}`}>
+                      {m.status.replace('_', ' ')}
+                    </span>
+                  )}
                 </td>
                 {canEdit && (
                   <td className="py-2.5 text-right">
@@ -78,6 +94,47 @@ export function MaterialsTable({
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function StatusSelect({
+  material,
+  projectId,
+}: {
+  material: MaterialRow;
+  projectId: string;
+}) {
+  const mutation = useUpdateMaterialStatus({ projectId });
+  // Optimistic value: while mutating, mutation.variables holds the requested
+  // status; rollback on error resets the cache, so the displayed value tracks
+  // the cache rather than this local pill — but the pill color should also
+  // reflect the just-clicked value for instant feedback.
+  const displayStatus = mutation.variables?.status ?? material.status;
+
+  return (
+    <div className="inline-flex items-center gap-2">
+      <select
+        value={displayStatus}
+        disabled={mutation.isPending}
+        onChange={(e) =>
+          mutation.mutate({
+            id: material.id,
+            status: e.target.value as MaterialStatus,
+          })
+        }
+        className={`text-xs font-medium px-2 py-0.5 rounded-md border-0 cursor-pointer disabled:opacity-60 ${materialStatusColors[displayStatus] ?? ''}`}
+        aria-label={`Status for ${material.name}`}
+      >
+        {MATERIAL_STATUSES.map((s) => (
+          <option key={s} value={s}>
+            {s.replace('_', ' ')}
+          </option>
+        ))}
+      </select>
+      {mutation.isError && (
+        <span className="text-xs text-red-600" title={mutation.error.message}>!</span>
+      )}
     </div>
   );
 }

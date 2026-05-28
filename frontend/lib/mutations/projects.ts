@@ -6,6 +6,7 @@ import {
   createProject,
   createProjectWithMaterials,
   updateProjectStatus,
+  removeProject,
   addMaterial,
   updateMaterialStatus,
   updateMaterialQuantity,
@@ -41,6 +42,16 @@ export function useCreateProjectWithMaterials() {
   return useMutation({
     mutationFn: (input: CreateProjectWithMaterialsInput) =>
       unwrap(createProjectWithMaterials(input)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: projectsKeys.all });
+    },
+  });
+}
+
+export function useRemoveProject() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => unwrap(removeProject(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectsKeys.all });
     },

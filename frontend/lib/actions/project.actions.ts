@@ -6,9 +6,11 @@ import {
   CREATE_PROJECT_MUTATION,
   CREATE_PROJECT_WITH_MATERIALS_MUTATION,
   UPDATE_PROJECT_MUTATION,
+  REMOVE_PROJECT_MUTATION,
   CREATE_MATERIAL_MUTATION,
   UPDATE_MATERIAL_MUTATION,
 } from '../graphql/queries';
+import { z } from 'zod';
 import {
   CreateProjectSchema,
   CreateProjectWithMaterialsSchema,
@@ -148,6 +150,25 @@ export async function updateMaterialStatus(
     return { ok: true, data: data.updateMaterial };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to update material' };
+  }
+}
+
+const IdSchema = z.object({ id: z.uuid('Invalid id') });
+
+export async function removeProject(id: string): Promise<ActionResult<{ id: string }>> {
+  const parsed = IdSchema.safeParse({ id });
+  if (!parsed.success) return { ok: false, error: 'Invalid project id' };
+
+  const client = await gqlClient();
+  try {
+    await client.request<{ removeProject: boolean }>(REMOVE_PROJECT_MUTATION, {
+      id: parsed.data.id,
+    });
+    revalidatePath('/dashboard');
+    revalidatePath('/projects');
+    return { ok: true, data: { id: parsed.data.id } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to delete project' };
   }
 }
 
