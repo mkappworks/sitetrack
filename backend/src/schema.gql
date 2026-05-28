@@ -151,7 +151,7 @@ type Query {
   project(id: ID!): Project!
   projects: [Project!]!
 
-  """Get a specific user by ID"""
+  """Get a specific user by ID — Admin only. Non-admins use `me` for self."""
   user(id: ID!): User!
 
   """List all users — Admin only"""

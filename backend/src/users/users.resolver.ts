@@ -21,8 +21,9 @@ export class UsersResolver {
     return this.usersService.findAll();
   }
 
-  @Query(() => User, { description: 'Get a specific user by ID' })
-  @UseGuards(JwtAuthGuard)
+  @Query(() => User, { description: 'Get a specific user by ID — Admin only. Non-admins use `me` for self.' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
   user(@Args('id', { type: () => ID }) id: string): Promise<User> {
     return this.usersService.findOne(id);
   }
