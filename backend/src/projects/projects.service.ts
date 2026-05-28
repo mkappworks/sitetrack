@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { Project, ProjectStatus } from './entities/project.entity';
 import {
   CreateProjectInput,
@@ -120,6 +120,10 @@ export class ProjectsService {
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined) (project as any)[key] = value;
     }
+    // findOne loaded `manager` as the full User object. save() prefers the
+    // relation object over the FK column — without clearing it, setting
+    // managerId here would be reverted on persist. Drop the stale relation.
+    project.manager = undefined;
     return this.projectsRepo.save(project);
   }
 
@@ -131,6 +135,26 @@ export class ProjectsService {
     this.assertCanModify(project, currentUser);
     await this.projectsRepo.softRemove(project);
     return true;
+  }
+
+  async findDeleted(): Promise<Project[]> {
+    return this.projectsRepo.find({
+      where: { deletedAt: Not(IsNull()) },
+      withDeleted: true,
+      relations: { manager: true },
+      order: { deletedAt: 'DESC' },
+    });
+  }
+
+  async restore(id: string): Promise<Project> {
+    await this.projectsRepo.restore(id);
+    // restore() doesn't return the row; fetch fresh with relations.
+    const project = await this.projectsRepo.findOne({
+      where: { id },
+      relations: { manager: true },
+    });
+    if (!project) throw new NotFoundException(`Project ${id} not found after restore`);
+    return project;
   }
 
   private assertCanModify(project: Project, user: User): void {

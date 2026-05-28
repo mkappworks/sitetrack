@@ -125,6 +125,8 @@ type Mutation {
 
   """Delete a user — Admin only"""
   removeUser(id: ID!): Boolean!
+  restoreEquipment(id: ID!): Equipment!
+  restoreProject(id: ID!): Project!
   updateEquipment(id: ID!, input: UpdateEquipmentInput!): Equipment!
   updateMaterial(id: ID!, input: UpdateMaterialInput!): Material!
   updateProject(id: ID!, input: UpdateProjectInput!): Project!
@@ -169,6 +171,11 @@ type ProjectStatusCount {
 }
 
 type Query {
+  """Soft-deleted equipment — Admin only"""
+  deletedEquipments: [Equipment!]!
+
+  """Soft-deleted projects — Admin only"""
+  deletedProjects: [Project!]!
   equipment(id: ID!): Equipment!
   equipments(limit: Int! = 20, offset: Int! = 0, search: String): EquipmentPage!
 

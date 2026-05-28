@@ -97,6 +97,20 @@ export class ProjectsResolver {
     return this.projectsService.remove(id, user);
   }
 
+  @Query(() => [Project], { description: 'Soft-deleted projects — Admin only' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  deletedProjects(): Promise<Project[]> {
+    return this.projectsService.findDeleted();
+  }
+
+  @Mutation(() => Project)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  restoreProject(@Args('id', { type: () => ID }) id: string): Promise<Project> {
+    return this.projectsService.restore(id);
+  }
+
   // --- Subscription ---
 
   @Subscription(() => Project, {

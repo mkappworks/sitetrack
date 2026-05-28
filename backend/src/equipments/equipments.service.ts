@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Not, Repository } from "typeorm";
 import { CreateEquipmentInput } from "./dto/create-equipment.input";
 import { UpdateEquipmentInput } from "./dto/update-equipment.input";
 import { EquipmentPage } from "./dto/equipment-page.type";
@@ -84,6 +84,9 @@ export class EquipmentsService {
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined) (equipment as any)[key] = value;
     }
+    // See projects.service.update: clear the stale loaded relation so save()
+    // respects the new managerId FK instead of reverting it.
+    equipment.manager = undefined;
     return this.equipmentRepo.save(equipment);
   }
 
@@ -92,6 +95,25 @@ export class EquipmentsService {
     this.assertCanModify(equipment, currentUser);
     await this.equipmentRepo.softRemove(equipment);
     return true;
+  }
+
+  async findDeleted(): Promise<Equipment[]> {
+    return this.equipmentRepo.find({
+      where: { deletedAt: Not(IsNull()) },
+      withDeleted: true,
+      relations: { manager: true },
+      order: { deletedAt: "DESC" },
+    });
+  }
+
+  async restore(id: string): Promise<Equipment> {
+    await this.equipmentRepo.restore(id);
+    const equipment = await this.equipmentRepo.findOne({
+      where: { id },
+      relations: { manager: true },
+    });
+    if (!equipment) throw new NotFoundException(`Equipment ${id} not found after restore`);
+    return equipment;
   }
 
   private assertCanModify(equipment: Equipment, user: User): void {

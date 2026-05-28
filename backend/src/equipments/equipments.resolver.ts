@@ -67,4 +67,18 @@ export class EquipmentsResolver {
   ): Promise<boolean> {
     return this.equipmentsService.remove(id, user);
   }
+
+  @Query(() => [Equipment], { description: "Soft-deleted equipment — Admin only" })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  deletedEquipments(): Promise<Equipment[]> {
+    return this.equipmentsService.findDeleted();
+  }
+
+  @Mutation(() => Equipment)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  restoreEquipment(@Args("id", { type: () => ID }) id: string): Promise<Equipment> {
+    return this.equipmentsService.restore(id);
+  }
 }

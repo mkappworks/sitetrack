@@ -57,7 +57,9 @@ export async function createProject(
     ...parsed.data,
     description: parsed.data.description || undefined,
     location: parsed.data.location || undefined,
-    managerId: parsed.data.managerId || undefined,
+    // '' = explicit unassign → null (overwrites). Real id = assign. undefined
+    // would mean "no change" — not what an empty dropdown selection means.
+    managerId: parsed.data.managerId === '' ? null : parsed.data.managerId,
   };
 
   const client = await gqlClient();
@@ -84,7 +86,7 @@ export async function createProjectWithMaterials(
     ...parsed.data,
     description: parsed.data.description || undefined,
     location: parsed.data.location || undefined,
-    managerId: parsed.data.managerId || undefined,
+    managerId: parsed.data.managerId === '' ? null : parsed.data.managerId,
   };
 
   const client = await gqlClient();
@@ -132,7 +134,7 @@ export async function updateProject(
     name: fields.name,
     description: fields.description || undefined,
     location: fields.location || undefined,
-    managerId: fields.managerId || undefined,
+    managerId: fields.managerId === '' ? null : fields.managerId,
   };
 
   const client = await gqlClient();

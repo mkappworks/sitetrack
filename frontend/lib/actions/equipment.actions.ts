@@ -30,7 +30,7 @@ export async function createEquipment(
   const wireInput = {
     ...parsed.data,
     description: parsed.data.description || undefined,
-    managerId: parsed.data.managerId || undefined,
+    managerId: parsed.data.managerId === '' ? null : parsed.data.managerId,
   };
 
   const client = await gqlClient();
@@ -61,7 +61,7 @@ export async function updateEquipment(
   const wireInput = {
     name: fields.name,
     description: fields.description || undefined,
-    managerId: fields.managerId || undefined,
+    managerId: fields.managerId === '' ? null : fields.managerId,
   };
 
   const client = await gqlClient();
