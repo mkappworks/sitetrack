@@ -1,14 +1,15 @@
-import { gqlClient } from '../../../lib/graphql/client';
-import { PROJECT_QUERY } from '../../../lib/graphql/queries';
+import { getServerSession } from 'next-auth';
+import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { authOptions } from '../../../lib/auth';
+import { getQueryClient } from '../../../lib/get-query-client';
+import { projectByIdQueryOptions } from '../../../lib/queries/projects';
+import type { Project } from '../../../lib/graphql/schemas';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { MaterialsTable } from '../../../components/MaterialsTable';
 import { ProjectLiveUpdates } from '../../../components/ProjectLiveUpdates';
 import { UpdateStatusForm } from '../../../components/UpdateStatusForm';
 import { AddMaterialForm } from '../../../components/AddMaterialForm';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '../../../lib/auth';
-import { notFound } from 'next/navigation';
-import Link from 'next/link';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -17,12 +18,16 @@ interface PageProps {
 export default async function ProjectDetailPage({ params }: PageProps) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
-  const client = await gqlClient();
 
-  let project: any;
+  // fetchQuery returns the data directly — the right primitive for a Server
+  // Component that renders in place. queryFn handles Zod validation; any
+  // failure (404 from the backend, schema drift, network) throws here.
+  let project: Project;
   try {
-    const data = await client.request<{ project: any }>(PROJECT_QUERY, { id });
-    project = data.project;
+    const queryClient = getQueryClient();
+    project = await queryClient.fetchQuery(
+      projectByIdQueryOptions({ id, token: session?.accessToken }),
+    );
   } catch {
     notFound();
   }

@@ -44,6 +44,8 @@ export const PROJECT_QUERY = `
       location
       startDate
       endDate
+      createdAt
+      updatedAt
       manager {
         id
         name

@@ -76,6 +76,13 @@ export const UsersResponseSchema = z.object({
   users: PaginatedShape(UserSchema),
 });
 
+// Single-project response. Backend returns null when the project is missing
+// (the resolver throws NotFoundException → GraphQL surfaces it as null at the
+// schema level). queryFn will check + throw before this schema even sees null.
+export const ProjectByIdResponseSchema = z.object({
+  project: ProjectSchema,
+});
+
 // ── Inferred TS types — consumed by Client Components ─────────────────────
 export type Project = z.infer<typeof ProjectSchema>;
 export type Manager = z.infer<typeof ManagerSchema>;
