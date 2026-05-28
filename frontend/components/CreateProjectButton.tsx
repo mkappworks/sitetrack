@@ -61,8 +61,8 @@ export function CreateProjectButton() {
         >
           <form.Field name="name">
             {(field) => (
-              <div>
-                <label className="label">Project name *</label>
+              <label className="block">
+                <span className="label">Project name *</span>
                 <input
                   className="input"
                   placeholder="Warehouse Extension Phase 2"
@@ -71,14 +71,14 @@ export function CreateProjectButton() {
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
                 <FieldError field={field} />
-              </div>
+              </label>
             )}
           </form.Field>
 
           <form.Field name="description">
             {(field) => (
-              <div>
-                <label className="label">Description</label>
+              <label className="block">
+                <span className="label">Description</span>
                 <textarea
                   rows={2}
                   className="input resize-none"
@@ -86,14 +86,14 @@ export function CreateProjectButton() {
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
-              </div>
+              </label>
             )}
           </form.Field>
 
           <form.Field name="location">
             {(field) => (
-              <div>
-                <label className="label">Location</label>
+              <label className="block">
+                <span className="label">Location</span>
                 <input
                   className="input"
                   placeholder="Frankfurt, Germany"
@@ -101,14 +101,14 @@ export function CreateProjectButton() {
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                 />
-              </div>
+              </label>
             )}
           </form.Field>
 
           <form.Field name="status">
             {(field) => (
-              <div>
-                <label className="label">Status</label>
+              <label className="block">
+                <span className="label">Status</span>
                 <select
                   className="input"
                   value={field.state.value}
@@ -118,7 +118,7 @@ export function CreateProjectButton() {
                   <option value="PLANNING">Planning</option>
                   <option value="ACTIVE">Active</option>
                 </select>
-              </div>
+              </label>
             )}
           </form.Field>
 

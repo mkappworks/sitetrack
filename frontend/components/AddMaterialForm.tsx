@@ -37,8 +37,8 @@ export function AddMaterialForm({ projectId }: { projectId: string }) {
     >
       <form.Field name="name">
         {(field) => (
-          <div>
-            <label className="label">Material</label>
+          <label className="block">
+            <span className="label">Material</span>
             <input
               className="input w-40"
               placeholder="Concrete"
@@ -47,14 +47,14 @@ export function AddMaterialForm({ projectId }: { projectId: string }) {
               onChange={(e) => field.handleChange(e.target.value)}
             />
             <FieldError field={field} />
-          </div>
+          </label>
         )}
       </form.Field>
 
       <form.Field name="quantity">
         {(field) => (
-          <div>
-            <label className="label">Qty</label>
+          <label className="block">
+            <span className="label">Qty</span>
             <input
               type="number"
               step="0.01"
@@ -65,14 +65,14 @@ export function AddMaterialForm({ projectId }: { projectId: string }) {
               onChange={(e) => field.handleChange(Number(e.target.value))}
             />
             <FieldError field={field} />
-          </div>
+          </label>
         )}
       </form.Field>
 
       <form.Field name="unit">
         {(field) => (
-          <div>
-            <label className="label">Unit</label>
+          <label className="block">
+            <span className="label">Unit</span>
             <input
               className="input w-20"
               placeholder="m³"
@@ -81,7 +81,7 @@ export function AddMaterialForm({ projectId }: { projectId: string }) {
               onChange={(e) => field.handleChange(e.target.value)}
             />
             <FieldError field={field} />
-          </div>
+          </label>
         )}
       </form.Field>
 
