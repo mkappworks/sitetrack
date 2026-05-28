@@ -284,6 +284,51 @@ describe("ProjectsService", () => {
     });
   });
 
+  describe("statusCounts", () => {
+    let qb: {
+      select: jest.Mock;
+      addSelect: jest.Mock;
+      where: jest.Mock;
+      groupBy: jest.Mock;
+      getRawMany: jest.Mock;
+    };
+
+    beforeEach(() => {
+      qb = {
+        select: jest.fn().mockReturnThis(),
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        groupBy: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          { status: ProjectStatus.ACTIVE, count: '14' },
+          { status: ProjectStatus.PLANNING, count: '3' },
+        ]),
+      };
+      projectsRepo.createQueryBuilder!.mockReturnValue(qb);
+    });
+
+    it("returns per-status counts globally for admin (no WHERE)", async () => {
+      const result = await projectService.statusCounts(mockAdmin);
+
+      expect(qb.where).not.toHaveBeenCalled();
+      expect(qb.groupBy).toHaveBeenCalledWith('project.status');
+      // pg returns BIGINT COUNT as a string; service coerces to number
+      expect(result).toEqual([
+        { status: ProjectStatus.ACTIVE, count: 14 },
+        { status: ProjectStatus.PLANNING, count: 3 },
+      ]);
+    });
+
+    it("scopes the aggregation to the manager's own projects", async () => {
+      await projectService.statusCounts(mockManager);
+
+      expect(qb.where).toHaveBeenCalledWith(
+        "project.managerId = :userId",
+        { userId: "manager-1" },
+      );
+    });
+  });
+
   describe("createWithMaterials", () => {
     it("creates a project and its materials atomically through the same transactional manager", async () => {
       txnManager.save

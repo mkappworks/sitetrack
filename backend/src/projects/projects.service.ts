@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Project } from './entities/project.entity';
+import { Project, ProjectStatus } from './entities/project.entity';
 import {
   CreateProjectInput,
   CreateProjectMaterialInput,
   UpdateProjectInput,
 } from './dto/project.input';
 import { ProjectPage } from './dto/project-page.type';
+import { ProjectStatusCount } from './dto/project-status-count.type';
 import { PaginationArgs } from '../common/pagination/paginated.type';
 import { Material } from '../materials/entities/material.entity';
 import { User, UserRole } from '../users/entities/user.entity';
@@ -50,6 +51,21 @@ export class ProjectsService {
       .getManyAndCount();
 
     return { items, total, limit: pagination.limit, offset: pagination.offset };
+  }
+
+  async statusCounts(user: User): Promise<ProjectStatusCount[]> {
+    const qb = this.projectsRepo
+      .createQueryBuilder('project')
+      .select('project.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('project.status');
+
+    if (user.role === UserRole.MANAGER) {
+      qb.where('project.managerId = :userId', { userId: user.id });
+    }
+
+    const rows = await qb.getRawMany<{ status: ProjectStatus; count: string }>();
+    return rows.map((r) => ({ status: r.status, count: Number(r.count) }));
   }
 
   async findOne(id: string): Promise<Project> {

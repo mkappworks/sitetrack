@@ -1,11 +1,17 @@
 import { queryOptions } from '@tanstack/react-query';
 import { gqlFetch } from '../graphql/client';
-import { PROJECTS_QUERY, PROJECT_QUERY } from '../graphql/queries';
+import {
+  PROJECTS_QUERY,
+  PROJECT_QUERY,
+  PROJECT_STATUS_COUNTS_QUERY,
+} from '../graphql/queries';
 import {
   ProjectsResponseSchema,
   ProjectByIdResponseSchema,
+  ProjectStatusCountsResponseSchema,
   type ProjectsResponse,
   type Project,
+  type ProjectStatusCount,
 } from '../graphql/schemas';
 
 export const projectsKeys = {
@@ -13,6 +19,7 @@ export const projectsKeys = {
   list: (limit: number, offset: number, search: string | undefined) =>
     [...projectsKeys.all, 'list', { limit, offset, search: search || undefined }] as const,
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
+  statusCounts: () => [...projectsKeys.all, 'status-counts'] as const,
 };
 
 export function projectsQueryOptions(opts: {
@@ -30,6 +37,20 @@ export function projectsQueryOptions(opts: {
         opts.token,
       );
       return ProjectsResponseSchema.parse(raw).projects;
+    },
+  });
+}
+
+export function projectStatusCountsQueryOptions(opts: { token?: string }) {
+  return queryOptions({
+    queryKey: projectsKeys.statusCounts(),
+    queryFn: async (): Promise<ProjectStatusCount[]> => {
+      const raw = await gqlFetch<unknown>(
+        PROJECT_STATUS_COUNTS_QUERY,
+        undefined,
+        opts.token,
+      );
+      return ProjectStatusCountsResponseSchema.parse(raw).projectStatusCounts;
     },
   });
 }

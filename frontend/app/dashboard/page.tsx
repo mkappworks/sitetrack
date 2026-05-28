@@ -1,30 +1,42 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../lib/auth';
 import { getQueryClient } from '../../lib/get-query-client';
-import { projectsQueryOptions } from '../../lib/queries/projects';
+import {
+  projectsQueryOptions,
+  projectStatusCountsQueryOptions,
+} from '../../lib/queries/projects';
 import { ProjectCard } from '../../components/ProjectCard';
 import { StatusSummary } from '../../components/StatusSummary';
 import { CreateProjectButton } from '../../components/CreateProjectButton';
 
-const DASHBOARD_PAGE_SIZE = 100;
+const RECENT_PROJECTS_LIMIT = 12;
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
 
   const queryClient = getQueryClient();
-  const projectsPage = await queryClient.fetchQuery(
-    projectsQueryOptions({
-      limit: DASHBOARD_PAGE_SIZE,
-      offset: 0,
-      token: session?.accessToken,
-    }),
-  );
-  const projects = projectsPage.items;
 
-  const statusCounts = projects.reduce<Record<string, number>>((acc, p) => {
-    acc[p.status] = (acc[p.status] ?? 0) + 1;
-    return acc;
-  }, {});
+  // Two queries, fired in parallel: aggregated counts (correct at any scale),
+  // and the most-recent N projects for the grid (a "what's new" view, not a
+  // global picture). Previously, both were derived from a single 100-project
+  // list — so the status summary lied above 100 projects total.
+  const [statusCountsList, projectsPage] = await Promise.all([
+    queryClient.fetchQuery(
+      projectStatusCountsQueryOptions({ token: session?.accessToken }),
+    ),
+    queryClient.fetchQuery(
+      projectsQueryOptions({
+        limit: RECENT_PROJECTS_LIMIT,
+        offset: 0,
+        token: session?.accessToken,
+      }),
+    ),
+  ]);
+
+  const counts = Object.fromEntries(
+    statusCountsList.map((row) => [row.status, row.count]),
+  );
+  const total = statusCountsList.reduce((sum, row) => sum + row.count, 0);
 
   return (
     <div>
@@ -40,18 +52,21 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      <StatusSummary counts={statusCounts} total={projects.length} />
+      <StatusSummary counts={counts} total={total} />
 
-      {projects.length === 0 ? (
+      {total === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-lg font-medium">No projects yet</p>
           <p className="text-sm mt-1">Create your first project to get started</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-6">
-          {projects.map((project) => (
-            <ProjectCard key={project.id} project={project} />
-          ))}
+        <div className="mt-6">
+          <h2 className="text-sm font-medium text-gray-500 mb-3">Recent projects</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {projectsPage.items.map((project) => (
+              <ProjectCard key={project.id} project={project} />
+            ))}
+          </div>
         </div>
       )}
     </div>

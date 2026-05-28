@@ -92,6 +92,15 @@ export const ProjectByIdResponseSchema = z.object({
   project: ProjectSchema,
 });
 
+export const ProjectStatusCountSchema = z.object({
+  status: ProjectStatus,
+  count: z.number().int().nonnegative(),
+});
+
+export const ProjectStatusCountsResponseSchema = z.object({
+  projectStatusCounts: z.array(ProjectStatusCountSchema),
+});
+
 export type Project = z.infer<typeof ProjectSchema>;
 export type Manager = z.infer<typeof ManagerSchema>;
 export type Material = z.infer<typeof MaterialSchema>;
@@ -100,3 +109,4 @@ export type Equipment = z.infer<typeof EquipmentSchema>;
 export type ProjectsResponse = z.infer<typeof ProjectsResponseSchema>;
 export type UsersResponse = z.infer<typeof UsersResponseSchema>;
 export type EquipmentsResponse = z.infer<typeof EquipmentsResponseSchema>;
+export type ProjectStatusCount = z.infer<typeof ProjectStatusCountSchema>;

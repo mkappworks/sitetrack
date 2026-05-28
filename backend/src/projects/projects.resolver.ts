@@ -11,6 +11,7 @@ import {
   UpdateProjectInput,
 } from './dto/project.input';
 import { ProjectPage } from './dto/project-page.type';
+import { ProjectStatusCount } from './dto/project-status-count.type';
 import { SearchablePaginationArgs } from '../common/pagination/paginated.type';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -41,6 +42,12 @@ export class ProjectsResolver {
   @UseGuards(JwtAuthGuard)
   project(@Args('id', { type: () => ID }) id: string): Promise<Project> {
     return this.projectsService.findOne(id);
+  }
+
+  @Query(() => [ProjectStatusCount])
+  @UseGuards(JwtAuthGuard)
+  projectStatusCounts(@CurrentUser() user: User): Promise<ProjectStatusCount[]> {
+    return this.projectsService.statusCounts(user);
   }
 
   // --- Mutations ---

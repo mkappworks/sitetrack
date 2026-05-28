@@ -6,6 +6,15 @@
 // the badge "📦 N materials" — selecting the array would pull every material
 // for every project on the page, which scales linearly with project count
 // AND materials per project. Detail page (PROJECT_QUERY) still selects them.
+export const PROJECT_STATUS_COUNTS_QUERY = `
+  query ProjectStatusCounts {
+    projectStatusCounts {
+      status
+      count
+    }
+  }
+`;
+
 export const PROJECTS_QUERY = `
   query Projects($limit: Int!, $offset: Int!, $search: String) {
     projects(limit: $limit, offset: $offset, search: $search) {

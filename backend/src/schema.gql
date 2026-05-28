@@ -163,6 +163,11 @@ enum ProjectStatus {
   PLANNING
 }
 
+type ProjectStatusCount {
+  count: Int!
+  status: ProjectStatus!
+}
+
 type Query {
   equipment(id: ID!): Equipment!
   equipments(limit: Int! = 20, offset: Int! = 0, search: String): EquipmentPage!
@@ -171,6 +176,7 @@ type Query {
   """The currently authenticated user"""
   me: User!
   project(id: ID!): Project!
+  projectStatusCounts: [ProjectStatusCount!]!
   projects(limit: Int! = 20, offset: Int! = 0, search: String): ProjectPage!
 
   """Get a specific user by ID — Admin only. Non-admins use `me` for self."""
