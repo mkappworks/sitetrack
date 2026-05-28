@@ -175,14 +175,38 @@ npm run migration:run
 
 `synchronize` is a productivity shortcut, not a safety net — it can DROP a column on rename, losing data. For anything risky (renames, type changes, large tables), generate a migration locally too, read the SQL, and hand-edit before committing.
 
+## Seeding development data
+
+`npm run seed` (in `backend/`) populates the database with realistic demo data — ~30 users, ~30 projects, ~30 equipment items, and ~120 materials linked across them. The script is idempotent: it skips if more than 5 users already exist, so re-running is safe.
+
+```bash
+docker compose up -d postgres
+cd backend && npm run seed
+```
+
+Seed logins (development only — passwords are hardcoded):
+
+| Role    | Email                    | Password              |
+| ------- | ------------------------ | --------------------- |
+| Admin   | `admin@sitetrack.com`    | `SEED_ADMIN_PASSWORD` |
+| Manager | `manager1@sitetrack.com` | `password123`         |
+| Viewer  | `viewer1@sitetrack.com`  | `password123`         |
+
+Manager and viewer accounts go up to `manager5` / `viewer24`. For a clean re-seed, truncate the tables manually:
+
+```bash
+docker exec sitetrack-postgres-1 psql -U sitetrack -d sitetrack \
+  -c "TRUNCATE materials, equipments, projects, users RESTART IDENTITY CASCADE"
+```
+
 ## Testing
 
 Two suites, two purposes:
 
-| Command            | Scope                                                                  | Requires                                                              |
-| ------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `npm test`         | Unit tests — mocked TypeORM repositories, no DB                        | Nothing                                                               |
-| `npm run test:e2e` | End-to-end — real Postgres, real transactions, real rollbacks          | Docker-compose Postgres up; creates a separate `sitetrack_test` DB    |
+| Command            | Scope                                                         | Requires                                                           |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `npm test`         | Unit tests — mocked TypeORM repositories, no DB               | Nothing                                                            |
+| `npm run test:e2e` | End-to-end — real Postgres, real transactions, real rollbacks | Docker-compose Postgres up; creates a separate `sitetrack_test` DB |
 
 The unit suite proves service-level contracts in isolation. The e2e suite proves **DB-engine-level guarantees** that a mock can't — for example `backend/test/projects.transaction.e2e-spec.ts` calls `ProjectsService.createWithMaterials` with a `varchar(255)` overflow on the child material, expects the call to reject, then queries Postgres directly to confirm zero project rows survive. That's the only way to prove `ROLLBACK` actually fired at the engine.
 
