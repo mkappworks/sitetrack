@@ -38,7 +38,6 @@ export class UsersService {
   }
 
   async findAll(pagination: PaginationArgs): Promise<UserPage> {
-    // findAndCount returns [items, total]; total is pre-LIMIT count
     const [items, total] = await this.usersRepo.findAndCount({
       order: { createdAt: "DESC" },
       take: pagination.limit,
@@ -58,15 +57,13 @@ export class UsersService {
   }
 
   async findByIds(ids: string[]): Promise<User[]> {
-    // Used by DataLoader — batch-fetch many users in a single query
     return this.usersRepo.findBy({ id: In(ids) });
   }
 
   async update(id: string, input: UpdateUserInput): Promise<User> {
     const user = await this.findOne(id);
-    // ValidationPipe transform + useDefineForClassFields materializes optional
-    // DTO fields as own `undefined`; skip them so partial updates don't null
-    // out unchanged columns. See projects.service.ts:update for full context.
+    // ValidationPipe + useDefineForClassFields materializes optional fields
+    // as own `undefined`; skip them so partial updates don't null columns.
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined) (user as any)[key] = value;
     }

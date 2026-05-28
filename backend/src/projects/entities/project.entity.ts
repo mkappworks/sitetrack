@@ -39,12 +39,8 @@ export class Project {
   @Column({ length: 255, nullable: true })
   location?: string;
 
-  // Postgres `date` columns come back from the pg driver as strings
-  // ("YYYY-MM-DD"), but the GraphQL DateTime scalar requires JS Date objects.
-  // The read transformer bridges the gap; the write side is a no-op since
-  // the driver accepts Date directly.
-  // Caveat: new Date('YYYY-MM-DD') is parsed as UTC midnight — fine here, but
-  // a production-grade fix would be a LocalDate scalar.
+  // Postgres `date` returns strings via the pg driver; the GraphQL DateTime
+  // scalar wants JS Date. Transformer bridges read-side; write accepts Date directly.
   @Field({ nullable: true })
   @Column({
     name: 'start_date',
@@ -69,7 +65,6 @@ export class Project {
   })
   endDate?: Date;
 
-  // manager_id FK — not exposed directly in GraphQL, use manager resolver field
   @Column({ name: 'manager_id', nullable: true })
   managerId?: string;
 
@@ -78,13 +73,12 @@ export class Project {
   @JoinColumn({ name: 'manager_id' })
   manager?: User;
 
-  // Resolved via DataLoader — see projects.resolver.ts ResolveField
   @Field(() => [Material], { nullable: true })
   @OneToMany(() => Material, (material) => material.project)
   materials?: Material[];
 
-  // Derived field — computed via MaterialCountByProjectLoader, not stored.
-  // No @Column: TypeORM ignores it. Resolver provides the value via @ResolveField.
+  // Derived, not stored — no @Column. Resolved by @ResolveField in
+  // project-materials.resolver via MaterialCountByProjectLoader.
   @Field(() => Int)
   materialCount?: number;
 

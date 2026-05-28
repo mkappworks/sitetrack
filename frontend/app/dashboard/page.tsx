@@ -1,8 +1,3 @@
-// SERVER COMPONENT — fetches data directly, no useEffect, no loading spinner.
-// Uses queryClient.fetchQuery (not prefetchQuery) so we get the data back
-// synchronously for in-place rendering, while still going through the shared
-// Zod-validated query function in lib/queries/projects.
-
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../lib/auth';
 import { getQueryClient } from '../../lib/get-query-client';
@@ -11,9 +6,6 @@ import { ProjectCard } from '../../components/ProjectCard';
 import { StatusSummary } from '../../components/StatusSummary';
 import { CreateProjectButton } from '../../components/CreateProjectButton';
 
-// Dashboard renders a status summary — needs the first page of projects.
-// For a learning-scale dataset 100 is plenty; at production scale this would
-// move to a dedicated stats endpoint that returns counts only.
 const DASHBOARD_PAGE_SIZE = 100;
 
 export default async function DashboardPage() {
@@ -48,10 +40,8 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Status summary bar */}
       <StatusSummary counts={statusCounts} total={projects.length} />
 
-      {/* Project grid */}
       {projects.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <p className="text-lg font-medium">No projects yet</p>

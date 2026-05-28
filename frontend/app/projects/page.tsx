@@ -8,7 +8,6 @@ import { ProjectsListClient } from './ProjectsListClient';
 
 const PAGE_SIZE = 20;
 
-// searchParams is async in Next.js 15+: it's a Promise we must await.
 export default async function ProjectsPage({
   searchParams,
 }: {
@@ -22,10 +21,7 @@ export default async function ProjectsPage({
   const canCreate =
     session?.user.role === 'ADMIN' || session?.user.role === 'MANAGER';
 
-  // Per-request QueryClient on the server (isServer branch of getQueryClient).
   const queryClient = getQueryClient();
-  // Server-side prefetch — by the time the Client Component mounts, the cache
-  // already has the data for this key. No client-side fetch on first paint.
   await queryClient.prefetchQuery(
     projectsQueryOptions({
       limit: PAGE_SIZE,
@@ -39,12 +35,10 @@ export default async function ProjectsPage({
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
-          {/* The count comes from the hydrated query — see ProjectsListClient header */}
         </div>
         {canCreate && <CreateProjectButton />}
       </div>
 
-      {/* dehydrate() serialises the cache; HydrationBoundary rehydrates it client-side */}
       <HydrationBoundary state={dehydrate(queryClient)}>
         <ProjectsListClient page={page} pageSize={PAGE_SIZE} />
       </HydrationBoundary>

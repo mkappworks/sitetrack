@@ -7,7 +7,6 @@ import { Project, ProjectStatus } from "./entities/project.entity";
 import { Material } from "../materials/entities/material.entity";
 import { User, UserRole } from "../users/entities/user.entity";
 
-// Helper to create a typed mock of a TypeORM repository
 type MockRepository<T extends ObjectLiteral> = Partial<
   Record<keyof Repository<T>, jest.Mock>
 >;
@@ -54,8 +53,6 @@ const mockProject: Project = {
 describe("ProjectsService", () => {
   let projectService: ProjectsService;
   let projectsRepo: MockRepository<Project>;
-  // Fake EntityManager that mirrors create/save — exposed so tests can stub
-  // the per-call return values and assert that writes went through it.
   let txnManager: { create: jest.Mock; save: jest.Mock };
   let dataSource: { transaction: jest.Mock };
 
@@ -64,8 +61,6 @@ describe("ProjectsService", () => {
       create: jest.fn((_entity: unknown, data: object) => ({ ...data })),
       save: jest.fn(),
     };
-    // DataSource.transaction(cb) invokes cb with a transactional EntityManager
-    // and propagates exceptions — that's the contract our service relies on.
     dataSource = {
       transaction: jest.fn((cb: (m: EntityManager) => Promise<unknown>) =>
         cb(txnManager as unknown as EntityManager),
@@ -218,8 +213,7 @@ describe("ProjectsService", () => {
         where: jest.fn().mockReturnThis(),
         take: jest.fn().mockReturnThis(),
         skip: jest.fn().mockReturnThis(),
-        // [items, totalCount] tuple
-        getManyAndCount: jest.fn().mockResolvedValue([[mockProject], 1]),
+          getManyAndCount: jest.fn().mockResolvedValue([[mockProject], 1]),
       };
       projectsRepo.createQueryBuilder!.mockReturnValue(queryBuilder);
     });
@@ -254,8 +248,6 @@ describe("ProjectsService", () => {
 
   describe("createWithMaterials", () => {
     it("creates a project and its materials atomically through the same transactional manager", async () => {
-      // First save = project (returns row with id stamped on it).
-      // Second save = materials array (children link via projectId).
       txnManager.save
         .mockImplementationOnce(async (entity: Project) => ({
           ...entity,
@@ -274,13 +266,10 @@ describe("ProjectsService", () => {
         mockAdmin,
       );
 
-      // The whole flow ran inside ONE transaction call
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
-      // Both saves used the SAME (transactional) manager
       expect(txnManager.save).toHaveBeenCalledTimes(2);
-      // Default repo was NOT used — proves nothing escaped the transaction
+      // projectsRepo NOT used — proves no write escaped the transaction.
       expect(projectsRepo.save).not.toHaveBeenCalled();
-      // Materials carry the parent project's id (set after first save resolved)
       const materialsArg = txnManager.save.mock.calls[1][0] as Material[];
       expect(materialsArg).toHaveLength(2);
       expect(materialsArg.every((m) => m.projectId === "project-1")).toBe(true);
@@ -288,7 +277,6 @@ describe("ProjectsService", () => {
     });
 
     it("rolls back: when the materials save throws, the caller receives the error and no write escapes the transaction", async () => {
-      // Project save succeeds; materials save fails mid-transaction.
       txnManager.save
         .mockImplementationOnce(async (entity: Project) => ({
           ...entity,
@@ -306,9 +294,6 @@ describe("ProjectsService", () => {
         ),
       ).rejects.toThrow("quantity violates check constraint");
 
-      // The proof: every write was routed through the transactional `manager`
-      // (no escape to `this.projectsRepo`). TypeORM's transaction() catches the
-      // throw and issues ROLLBACK, so the project row never commits.
       expect(txnManager.save).toHaveBeenCalledTimes(2);
       expect(projectsRepo.save).not.toHaveBeenCalled();
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);

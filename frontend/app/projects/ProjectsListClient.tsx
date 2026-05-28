@@ -17,10 +17,6 @@ export function ProjectsListClient({ page, pageSize }: Props) {
   const { data: session } = useSession();
   const offset = (page - 1) * pageSize;
 
-  // queryOptions() shared with the Server Component prefetch — same key, same fn.
-  // The token comes from the client-side session here; the server-side prefetch
-  // passed its own. The queryKey deliberately excludes the token so the hydrated
-  // entry matches the client's first useQuery call.
   const { data, isLoading, isError, error } = useQuery(
     projectsQueryOptions({
       limit: pageSize,
@@ -45,14 +41,12 @@ export function ProjectsListClient({ page, pageSize }: Props) {
     );
   }
 
-  // After Zod validation in projectsQueryOptions, `data` is fully typed.
   const projects = data!.items;
   const total = data!.total;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const hasPrev = page > 1;
   const hasNext = page < totalPages;
 
-  // URL-driven pagination — back/forward and shareable links Just Work.
   const goToPage = (next: number) => {
     const params = new URLSearchParams();
     if (next > 1) params.set('page', String(next));

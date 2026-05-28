@@ -45,8 +45,6 @@ export class CreateProjectInput {
   endDate?: string;
 }
 
-// Material fields without projectId — that's stamped on by the service after
-// the parent project's row is created inside the same transaction.
 @InputType()
 export class CreateProjectMaterialInput {
   @Field() @IsString() name: string;
@@ -57,12 +55,10 @@ export class CreateProjectMaterialInput {
   status?: MaterialStatus;
 }
 
-// Bundles a project + its initial materials into one atomic mutation.
 @InputType()
 export class CreateProjectWithMaterialsInput extends CreateProjectInput {
-  // ValidateNested + @Type are both required for class-validator to recurse
-  // into the array; without @Type it sees a plain object array and skips the
-  // per-item rules above.
+  // @Type is required alongside @ValidateNested for class-validator to recurse
+  // into the array — without it the per-item rules above are skipped.
   @Field(() => [CreateProjectMaterialInput])
   @ValidateNested({ each: true })
   @ArrayMinSize(1)

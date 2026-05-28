@@ -22,7 +22,7 @@ export class EquipmentsService {
   async create(input: CreateEquipmentInput, currentUser: User): Promise<Equipment> {
     const equipment = this.equipmentRepo.create({
       ...input,
-      // Default manager to the creating user if not specified and user is a manager
+      // Manager creating without explicit managerId auto-assigns themselves.
       managerId:
         input.managerId ??
         (currentUser.role === UserRole.MANAGER ? currentUser.id : undefined),
@@ -37,8 +37,8 @@ export class EquipmentsService {
       .leftJoinAndSelect("equipment.manager", "manager")
       .orderBy("equipment.createdAt", "DESC");
 
-    // Managers/Viewers only see their own managed equipment.
-    // Filter is applied BEFORE take/skip so count reflects only the manager's rows.
+    // Filter MUST be applied before take/skip so total reflects only the
+    // manager's rows, not the global table.
     if (user.role === UserRole.MANAGER) {
       qb.where("equipment.managerId = :userId", { userId: user.id });
     }
@@ -67,9 +67,9 @@ export class EquipmentsService {
   ): Promise<Equipment> {
     const equipment = await this.findOne(id);
     this.assertCanModify(equipment, currentUser);
-    // class-transformer (ValidationPipe transform:true) + useDefineForClassFields (ES2022+ target)
-    // materializes every optional DTO field as an own `undefined` property, so a plain
-    // Object.assign would clobber unchanged columns with null. Apply only the provided fields.
+    // class-transformer (ValidationPipe transform:true) + useDefineForClassFields
+    // materializes optional DTO fields as own `undefined` properties; Object.assign
+    // would clobber unchanged columns with null. Apply only provided fields.
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined) (equipment as any)[key] = value;
     }

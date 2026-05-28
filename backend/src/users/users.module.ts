@@ -9,8 +9,7 @@ import { UserProjectsResolver } from './user-projects.resolver';
 import { ProjectsByManagerLoader } from './loaders/projects-by-manager.loader';
 
 @Module({
-  // Project registered here ONLY so the loader's @InjectRepository(Project)
-  // resolves — we don't expose ProjectsService from this module.
+  // Project repo only — needed so the loader's @InjectRepository(Project) resolves.
   imports: [TypeOrmModule.forFeature([User, Project])],
   providers: [
     UsersService,
@@ -19,7 +18,6 @@ import { ProjectsByManagerLoader } from './loaders/projects-by-manager.loader';
     UserProjectsResolver,
     ProjectsByManagerLoader,
   ],
-  // Export service so AuthModule can use it for JWT validation
   exports: [UsersService],
 })
 export class UsersModule {}

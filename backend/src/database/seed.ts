@@ -1,15 +1,4 @@
-// Seed the development database with enough realistic data to exercise
-// pagination, filters, and relationships.
-//
-// Idempotent: skips if user count already > 5 (the admin + a handful is the
-// signal that we've seeded before). Drop the test DB or `TRUNCATE` manually
-// if you want a fresh seed.
-//
-// Run (docker-compose Postgres must be up):
-//   cd backend && npm run seed
-//
-// Or inside the container:
-//   docker compose exec backend npm run seed
+// Seed development data. Run: `npm run seed`. Requires docker-compose Postgres up.
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
@@ -20,7 +9,6 @@ import { Project, ProjectStatus } from '../projects/entities/project.entity';
 import { Equipment } from '../equipments/entities/equipment.entity';
 import { Material, MaterialStatus } from '../materials/entities/material.entity';
 
-// ── Data pools ────────────────────────────────────────────────────────────
 const FIRST_NAMES = [
   'Sarah', 'Mike', 'Aisha', 'Carlos', 'Jordan', 'Priya', 'Liam', 'Maya',
   'Chen', 'Emma', 'Diego', 'Yuki', 'Adaeze', 'Ravi', 'Hana', 'Marcus',
@@ -83,11 +71,12 @@ const MATERIAL_TEMPLATES: { name: string; unit: string; minQty: number; maxQty: 
   { name: 'Copper Wiring 12AWG', unit: 'm', minQty: 500, maxQty: 5000 },
 ];
 
+// Weighted toward ACTIVE.
 const PROJECT_STATUSES: ProjectStatus[] = [
   ProjectStatus.PLANNING, ProjectStatus.ACTIVE, ProjectStatus.ACTIVE,
   ProjectStatus.ACTIVE, ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED,
   ProjectStatus.CANCELLED,
-]; // weighted toward ACTIVE
+];
 
 const MATERIAL_STATUSES: MaterialStatus[] = [
   MaterialStatus.ORDERED, MaterialStatus.IN_TRANSIT,
@@ -95,21 +84,14 @@ const MATERIAL_STATUSES: MaterialStatus[] = [
   MaterialStatus.USED, MaterialStatus.RETURNED,
 ];
 
-// Deterministic-ish picker: cycles by index, no PRNG needed for reproducibility.
 const pickAt = <T>(arr: T[], i: number): T => arr[i % arr.length];
 
-// Sentinel row that proves THIS seed has already run. Checking for a specific
-// known email is precise — unlike a count threshold, it never falsely flags a
-// sparsely-populated prod DB as "already seeded."
 const SEED_SENTINEL_EMAIL = 'manager1@sitetrack.com';
 
-// ── Main ──────────────────────────────────────────────────────────────────
 async function seed() {
   const logger = new Logger('Seed');
 
-  // Hard env guard — refuse to run anywhere but development unless explicitly
-  // overridden. Prevents accidental seeding (with known-credential users) when
-  // a CI job, a misconfigured shell, or a deploy script points at the wrong DB.
+  // Refuse to run outside development; ALLOW_SEED=true overrides for CI fixtures.
   if (
     process.env.NODE_ENV !== 'development' &&
     process.env.ALLOW_SEED !== 'true'
@@ -121,8 +103,6 @@ async function seed() {
     process.exit(1);
   }
 
-  // createApplicationContext spins up DI without HTTP/GraphQL listeners —
-  // perfect for one-shot scripts that only need services and repositories.
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ['warn', 'error'],
   });
@@ -146,16 +126,16 @@ async function seed() {
     }
 
     logger.log('Seeding users …');
-    // 5 managers + 24 viewers — together with the admin that gives 30 users (1.5 pages)
     const managers: User[] = [];
     const viewers: User[] = [];
     for (let i = 0; i < 5; i++) {
       const first = pickAt(FIRST_NAMES, i);
       const last = pickAt(LAST_NAMES, i + 7);
+      // User entity @BeforeInsert hook hashes passwordHash on save.
       const user = usersRepo.create({
         email: `manager${i + 1}@sitetrack.com`,
         name: `${first} ${last}`,
-        passwordHash: 'password123', // @BeforeInsert hook hashes this
+        passwordHash: 'password123',
         role: UserRole.MANAGER,
       });
       managers.push(await usersRepo.save(user));
@@ -178,7 +158,6 @@ async function seed() {
     for (let i = 0; i < PROJECT_NAMES.length; i++) {
       const manager = pickAt(managers, i);
       const status = pickAt(PROJECT_STATUSES, i);
-      // Dates spread across the past year — gives a realistic createdAt order
       const daysAgo = Math.floor(i * 11);
       const created = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
       const endDate =
@@ -194,7 +173,7 @@ async function seed() {
         startDate: created,
         endDate,
       });
-      // Stamp createdAt manually so the list is ordered nicely for pagination demos
+      // Override the auto-stamped timestamps so projects sort across the past year.
       project.createdAt = created;
       project.updatedAt = created;
       projects.push(await projectsRepo.save(project));
@@ -218,7 +197,6 @@ async function seed() {
     logger.log('Seeding materials …');
     let materialCount = 0;
     for (let pi = 0; pi < projects.length; pi++) {
-      // 3–5 materials per project — gives ~120 total, enough to exercise DataLoader batching
       const perProject = 3 + (pi % 3);
       for (let mi = 0; mi < perProject; mi++) {
         const template = pickAt(MATERIAL_TEMPLATES, pi + mi);
@@ -236,8 +214,6 @@ async function seed() {
     }
     logger.log(`  → ${materialCount} materials`);
 
-    // Credentials are documented in the README — don't echo passwords in logs
-    // (CI captures, terminal scrollback, screen-share leakage all apply).
     logger.log('Seed complete. See README "Seeding development data" for logins.');
   } finally {
     await app.close();

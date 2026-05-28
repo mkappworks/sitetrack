@@ -27,14 +27,12 @@ export class ProjectsService {
       .leftJoinAndSelect('project.manager', 'manager')
       .orderBy('project.createdAt', 'DESC');
 
-    // Managers/Viewers only see their own managed projects.
-    // Filter is applied BEFORE take/skip so the count reflects filtered rows.
+    // Filter MUST be applied before take/skip so total reflects only the
+    // manager's rows, not the global table.
     if (user.role === UserRole.MANAGER) {
       qb.where('project.managerId = :userId', { userId: user.id });
     }
 
-    // getManyAndCount issues two queries: SELECT ... LIMIT/OFFSET and COUNT(*).
-    // The second one ignores LIMIT/OFFSET, returning the total filtered count.
     const [items, total] = await qb
       .take(pagination.limit)
       .skip(pagination.offset)
@@ -55,15 +53,14 @@ export class ProjectsService {
   async create(input: CreateProjectInput, currentUser: User): Promise<Project> {
     const project = this.projectsRepo.create({
       ...input,
-      // Default manager to the creating user if not specified and user is a manager
+      // Manager creating without explicit managerId auto-assigns themselves.
       managerId: input.managerId ?? (currentUser.role === UserRole.MANAGER ? currentUser.id : undefined),
     });
     return this.projectsRepo.save(project);
   }
 
-  // Atomically create a project + its initial materials. Every write goes
-  // through the txn-scoped `manager`; a throw inside the callback triggers
-  // TypeORM's ROLLBACK so no half-created project lingers in the DB.
+  // Every write goes through the txn-scoped `manager`; a throw inside the
+  // callback triggers ROLLBACK, so no half-created project lingers.
   async createWithMaterials(
     input: CreateProjectInput,
     materials: CreateProjectMaterialInput[],

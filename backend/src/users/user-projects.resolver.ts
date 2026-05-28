@@ -3,8 +3,7 @@ import { User } from './entities/user.entity';
 import { Project } from '../projects/entities/project.entity';
 import { ProjectsByManagerLoader } from './loaders/projects-by-manager.loader';
 
-// Split from UsersResolver so the REQUEST-scoped loader doesn't scope-bubble
-// the singleton resolver. Same pattern as ProjectMaterialsResolver.
+// Split from UsersResolver: REQUEST-scoped loader would scope-bubble it.
 @Resolver(() => User)
 export class UserProjectsResolver {
   constructor(private readonly loader: ProjectsByManagerLoader) {}

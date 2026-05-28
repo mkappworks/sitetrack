@@ -1,4 +1,3 @@
-// materials.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -37,8 +36,6 @@ export class MaterialsService {
     projectId: string,
     pagination: PaginationArgs,
   ): Promise<MaterialPage> {
-    // findAndCount returns [items, total]; total ignores skip/take so the
-    // pagination UI gets the true count of materials for THIS project.
     const [items, total] = await this.materialsRepo.findAndCount({
       where: { projectId },
       order: { createdAt: 'ASC' },
@@ -60,9 +57,8 @@ export class MaterialsService {
 
   async update(id: string, input: UpdateMaterialInput): Promise<Material> {
     const m = await this.findOne(id);
-    // ValidationPipe transform + useDefineForClassFields materializes optional
-    // DTO fields as own `undefined`; skip them so partial updates don't null
-    // out unchanged columns. See projects.service.ts:update for full context.
+    // ValidationPipe + useDefineForClassFields materializes optional fields
+    // as own `undefined`; skip them so partial updates don't null columns.
     for (const [key, value] of Object.entries(input)) {
       if (value !== undefined) (m as any)[key] = value;
     }

@@ -8,8 +8,7 @@ import { MaterialProjectResolver } from './material-project.resolver';
 import { ProjectByIdLoader } from './loaders/project.loader';
 
 @Module({
-  // Project is registered here ONLY so the loader's @InjectRepository(Project)
-  // resolves — we don't expose ProjectsService from this module.
+  // Project repo only — needed so the loader's @InjectRepository(Project) resolves.
   imports: [TypeOrmModule.forFeature([Material, Project])],
   providers: [
     MaterialsService,

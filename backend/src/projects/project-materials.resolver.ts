@@ -4,12 +4,9 @@ import { Material } from '../materials/entities/material.entity';
 import { MaterialsByProjectLoader } from './loaders/material.loader';
 import { MaterialCountByProjectLoader } from './loaders/material-count.loader';
 
-/**
- * Field resolver split from ProjectsResolver because MaterialsByProjectLoader
- * is REQUEST-scoped — and NestJS scope-bubbles any class that injects it.
- * ProjectsResolver hosts @Subscription() which requires a singleton, so the
- * field resolver lives here instead.
- */
+// Split from ProjectsResolver: the REQUEST-scoped loaders scope-bubble to any
+// class that injects them, and ProjectsResolver hosts @Subscription which
+// requires a singleton.
 @Resolver(() => Project)
 export class ProjectMaterialsResolver {
   constructor(
@@ -22,8 +19,6 @@ export class ProjectMaterialsResolver {
     return this.materialsLoader.load(project.id);
   }
 
-  // materialCount lets list views render "📦 N materials" without selecting
-  // the full materials array — one batched COUNT query per request instead.
   @ResolveField(() => Int)
   materialCount(@Parent() project: Project): Promise<number> {
     return this.countLoader.load(project.id);

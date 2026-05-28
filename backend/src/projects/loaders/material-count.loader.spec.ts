@@ -58,7 +58,6 @@ describe('MaterialCountByProjectLoader', () => {
   });
 
   it('returns 0 (not undefined) for a project with no materials, preserving key order', async () => {
-    // Project p2 has materials, p1 doesn't — DB only returns p2's row.
     queryBuilder.getRawMany.mockResolvedValue([
       { projectId: 'p2', count: '3' },
     ]);
@@ -68,8 +67,6 @@ describe('MaterialCountByProjectLoader', () => {
       loader.load('p2'),
     ]);
 
-    // Critical: 0, not undefined. DataLoader requires output array length to
-    // match input — a missing key means "zero materials," not "load failed."
     expect(c1).toBe(0);
     expect(c2).toBe(3);
   });

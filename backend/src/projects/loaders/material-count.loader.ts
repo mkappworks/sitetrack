@@ -4,8 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Material } from '../../materials/entities/material.entity';
 
-// Batches per-project material counts: listing 20 projects + selecting
-// materialCount becomes ONE grouped count query instead of 20 COUNT(*) calls.
 @Injectable({ scope: Scope.REQUEST })
 export class MaterialCountByProjectLoader extends DataLoader<string, number> {
   constructor(
@@ -23,10 +21,9 @@ export class MaterialCountByProjectLoader extends DataLoader<string, number> {
         .groupBy('material.project_id')
         .getRawMany<{ projectId: string; count: string }>();
 
-      // Postgres COUNT returns BIGINT → driver gives us a string. Coerce here.
+      // pg driver returns BIGINT COUNT as a string.
       const byId = new Map(rows.map((r) => [r.projectId, Number(r.count)]));
-      // Default 0 for projects with no materials — they don't appear in the
-      // GROUP BY result. DataLoader requires output length == input length.
+      // Default 0 for keys absent from GROUP BY (DataLoader requires length match).
       return projectIds.map((id) => byId.get(id) ?? 0);
     });
   }

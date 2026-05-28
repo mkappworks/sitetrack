@@ -66,8 +66,6 @@ describe('ProjectsByManagerLoader', () => {
     ]);
 
     expect(aProjects.map((p) => p.id)).toEqual(['p1']);
-    // Critical: DataLoader requires output array length == input array length.
-    // A manager with no projects must resolve to [], not undefined.
     expect(cProjects).toEqual([]);
   });
 });

@@ -4,8 +4,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Project } from '../../projects/entities/project.entity';
 
-// Batches User.projects lookups: listing N users becomes ONE
-// `WHERE manager_id IN (...)` instead of N queries.
 @Injectable({ scope: Scope.REQUEST })
 export class ProjectsByManagerLoader extends DataLoader<string, Project[]> {
   constructor(
@@ -24,8 +22,6 @@ export class ProjectsByManagerLoader extends DataLoader<string, Project[]> {
         if (p.managerId) grouped.get(p.managerId)?.push(p);
       }
 
-      // Empty array (NOT undefined) for managers with zero projects —
-      // DataLoader requires output length == input length.
       return managerIds.map((id) => grouped.get(id) ?? []);
     });
   }

@@ -1,13 +1,5 @@
-// End-to-end proof that ProjectsService.createWithMaterials issues a real
-// Postgres ROLLBACK when a write inside the transaction fails.
-//
-// Requirements:
-//   - docker-compose Postgres running (see docker-compose.yml at repo root)
-//   - Test creates/uses a SEPARATE database `sitetrack_test` so dev data
-//     in `sitetrack` is never touched.
-//
-// Run:
-//   cd backend && npm run test:e2e
+// E2E: createWithMaterials issues a real Postgres ROLLBACK on a failed write.
+// Requires docker-compose Postgres up; uses a separate `sitetrack_test` DB.
 import { Test, TestingModule } from '@nestjs/testing';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -25,13 +17,11 @@ const PG_CONFIG = {
   password: process.env.DB_PASSWORD ?? 'sitetrack_dev',
 };
 
-// Synthetic admin — we only read `role` and `id`; admin's managerId stays null
-// so we don't need to seed a real user row (no FK to satisfy).
+// admin's managerId stays null — no FK to satisfy, no user row needed.
 const admin = { id: 'admin-1', role: UserRole.ADMIN } as User;
 
-// Postgres can't CREATE DATABASE inside a transaction; open a temporary
-// DataSource against the default `postgres` DB, issue the statement, ignore
-// "already exists" (SQLSTATE 42P04), then close.
+// CREATE DATABASE can't run in a transaction, so use a temp DataSource against
+// the default `postgres` DB. Ignore 42P04 (already exists).
 async function ensureTestDatabase(): Promise<void> {
   const bootstrap = new DataSource({
     type: 'postgres',
@@ -62,7 +52,6 @@ describe('ProjectsService.createWithMaterials (real Postgres)', () => {
           type: 'postgres',
           ...PG_CONFIG,
           database: TEST_DB,
-          // Sync drops/creates the schema each run — fine for an isolated test DB.
           synchronize: true,
           dropSchema: true,
           entities: [join(__dirname, '..', 'src', '**', '*.entity.{ts,js}')],
@@ -81,7 +70,6 @@ describe('ProjectsService.createWithMaterials (real Postgres)', () => {
     await module?.close();
   });
 
-  // Each test runs on a clean slate so assertions about "row count" stay deterministic.
   beforeEach(async () => {
     await dataSource.query('TRUNCATE "materials", "projects" RESTART IDENTITY CASCADE');
   });
@@ -112,10 +100,8 @@ describe('ProjectsService.createWithMaterials (real Postgres)', () => {
   });
 
   it('Postgres rolls back the project insert when a later material insert violates a column constraint', async () => {
-    // `name` is varchar(255); a 300-char string triggers a real Postgres error
-    // ("value too long for type character varying(255)") AFTER the project row
-    // has been inserted in the same transaction. If rollback didn't fire, the
-    // project would remain in the DB and the assertion below would fail.
+    // 300 chars overflows materials.name (varchar(255)) — Postgres rejects
+    // AFTER the project row inserted in the same transaction.
     const tooLongName = 'X'.repeat(300);
 
     await expect(
@@ -126,7 +112,6 @@ describe('ProjectsService.createWithMaterials (real Postgres)', () => {
       ),
     ).rejects.toThrow(/too long for type character varying/);
 
-    // The real proof: query the DB. Zero rows means Postgres rolled back.
     const projects = await dataSource.query(
       `SELECT id FROM "projects" WHERE name = $1`,
       ['Doomed Site'],

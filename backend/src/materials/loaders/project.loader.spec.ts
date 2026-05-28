@@ -23,7 +23,7 @@ describe('ProjectByIdLoader', () => {
       ],
     }).compile();
 
-    // Request-scoped — must resolve, not get
+    // REQUEST-scoped — module.get returns undefined; must use resolve.
     loader = await module.resolve(ProjectByIdLoader);
     projectsRepo = await module.resolve(getRepositoryToken(Project));
   });
@@ -44,7 +44,6 @@ describe('ProjectByIdLoader', () => {
   it('returns results in the same order as input keys even when the DB returns them shuffled', async () => {
     const a: Project = { id: 'a', name: 'A', status: ProjectStatus.ACTIVE, createdAt: new Date(), updatedAt: new Date() };
     const b: Project = { id: 'b', name: 'B', status: ProjectStatus.ACTIVE, createdAt: new Date(), updatedAt: new Date() };
-    // DB returns in reverse order — loader must still match by key
     projectsRepo.find!.mockResolvedValue([b, a]);
 
     const [resA, resB] = await Promise.all([loader.load('a'), loader.load('b')]);
@@ -55,7 +54,6 @@ describe('ProjectByIdLoader', () => {
 
   it('throws for a missing id rather than silently returning null', async () => {
     projectsRepo.find!.mockResolvedValue([]);
-    // DataLoader convention: per-key Errors do not reject the batch but reject only that key
     await expect(loader.load('missing')).rejects.toThrow(/missing/);
   });
 });

@@ -8,9 +8,6 @@ import {
   type Project,
 } from '../graphql/schemas';
 
-// Query-key factory — single source of truth for keys.
-// Tuple-style keys let TanStack Query invalidate `['projects']` to nuke all pages,
-// or `['projects', 'detail', id]` to invalidate just one detail view.
 export const projectsKeys = {
   all: ['projects'] as const,
   list: (limit: number, offset: number) =>
@@ -18,8 +15,6 @@ export const projectsKeys = {
   detail: (id: string) => [...projectsKeys.all, 'detail', id] as const,
 };
 
-// queryOptions() bundles key + fn + types so server prefetch and client useQuery
-// can share the exact same config — no risk of key drift between the two.
 export function projectsQueryOptions(opts: {
   limit: number;
   offset: number;
@@ -33,10 +28,7 @@ export function projectsQueryOptions(opts: {
         { limit: opts.limit, offset: opts.offset },
         opts.token,
       );
-      // Validate at the trust boundary — anything past this point is fully typed.
-      // Zod throws a ZodError with a precise path if the shape diverges.
-      const parsed = ProjectsResponseSchema.parse(raw);
-      return parsed.projects;
+      return ProjectsResponseSchema.parse(raw).projects;
     },
   });
 }

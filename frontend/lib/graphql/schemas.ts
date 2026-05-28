@@ -1,10 +1,5 @@
 import { z } from 'zod';
 
-// Zod schemas mirror the backend GraphQL types. We validate the response at the
-// trust boundary (right after the network call) so the rest of the app works
-// with parsed, fully-typed data — no `any`, no surprises from schema drift.
-
-// ── Reusable ──────────────────────────────────────────────────────────────
 const PaginatedShape = <T extends z.ZodTypeAny>(item: T) =>
   z.object({
     items: z.array(item),
@@ -13,7 +8,6 @@ const PaginatedShape = <T extends z.ZodTypeAny>(item: T) =>
     offset: z.number().int().nonnegative(),
   });
 
-// ── Enums (match backend GraphQL enums exactly) ───────────────────────────
 const UserRole = z.enum(['ADMIN', 'MANAGER', 'VIEWER']);
 const ProjectStatus = z.enum([
   'PLANNING',
@@ -30,7 +24,6 @@ const MaterialStatus = z.enum([
   'RETURNED',
 ]);
 
-// ── Entities ──────────────────────────────────────────────────────────────
 export const ManagerSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -45,6 +38,8 @@ export const MaterialSchema = z.object({
   status: MaterialStatus,
 });
 
+// materials and materialCount are both optional: list view selects only
+// materialCount, detail view selects only materials.
 export const ProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -56,9 +51,6 @@ export const ProjectSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
   manager: ManagerSchema.nullable().optional(),
-  // materials and materialCount are both .optional() because different queries
-  // select different combinations: list view selects materialCount only,
-  // detail view selects materials only. A single Project Zod type covers both.
   materials: z.array(MaterialSchema).optional(),
   materialCount: z.number().int().nonnegative().optional(),
 });
@@ -71,7 +63,6 @@ export const UserSchema = z.object({
   createdAt: z.string(),
 });
 
-// ── Paginated responses ───────────────────────────────────────────────────
 export const ProjectsResponseSchema = z.object({
   projects: PaginatedShape(ProjectSchema),
 });
@@ -80,14 +71,10 @@ export const UsersResponseSchema = z.object({
   users: PaginatedShape(UserSchema),
 });
 
-// Single-project response. Backend returns null when the project is missing
-// (the resolver throws NotFoundException → GraphQL surfaces it as null at the
-// schema level). queryFn will check + throw before this schema even sees null.
 export const ProjectByIdResponseSchema = z.object({
   project: ProjectSchema,
 });
 
-// ── Inferred TS types — consumed by Client Components ─────────────────────
 export type Project = z.infer<typeof ProjectSchema>;
 export type Manager = z.infer<typeof ManagerSchema>;
 export type Material = z.infer<typeof MaterialSchema>;

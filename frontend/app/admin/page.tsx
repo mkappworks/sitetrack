@@ -15,8 +15,6 @@ export default async function AdminPage({
   searchParams: Promise<{ page?: string }>;
 }) {
   const session = await getServerSession(authOptions);
-
-  // Authoritative server guard — middleware already redirects, this protects data fetch.
   if (session?.user.role !== 'ADMIN') redirect('/dashboard');
 
   const { page: pageParam } = await searchParams;

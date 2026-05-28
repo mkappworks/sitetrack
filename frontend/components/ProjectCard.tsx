@@ -1,9 +1,6 @@
-// ProjectCard.tsx
 import Link from 'next/link';
 import { StatusBadge } from './StatusBadge';
 
-// Structural subset of the Zod-inferred Project — only the fields we render.
-// `| null` covers GraphQL nullable scalars; ProjectCard tolerates both null & undefined.
 interface ProjectCardProps {
   id: string;
   name: string;
@@ -11,8 +8,6 @@ interface ProjectCardProps {
   status: string;
   location?: string | null;
   manager?: { name: string } | null;
-  // From the materialCount field resolver (batched COUNT loader) — no need to
-  // pull the materials array client-side to render this badge.
   materialCount?: number;
 }
 
