@@ -79,3 +79,9 @@ export const CreateProjectWithMaterialsSchema = z.object({
 });
 export type CreateProjectWithMaterialsInput = z.infer<typeof CreateProjectWithMaterialsSchema>;
 export type ProjectMaterialItem = z.infer<typeof ProjectMaterialItemSchema>;
+
+export const CreateEquipmentSchema = z.object({
+  name: z.string().trim().min(3, 'Equipment name must be at least 3 characters'),
+  description: z.string().trim(),
+});
+export type CreateEquipmentFormInput = z.infer<typeof CreateEquipmentSchema>;

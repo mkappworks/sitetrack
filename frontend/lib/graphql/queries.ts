@@ -117,6 +117,54 @@ export const ME_QUERY = `
   }
 `;
 
+export const EQUIPMENTS_QUERY = `
+  query Equipments($limit: Int!, $offset: Int!) {
+    equipments(limit: $limit, offset: $offset) {
+      items {
+        id
+        name
+        description
+        createdAt
+        updatedAt
+        manager {
+          id
+          name
+          email
+        }
+      }
+      total
+      limit
+      offset
+    }
+  }
+`;
+
+export const EQUIPMENT_QUERY = `
+  query Equipment($id: ID!) {
+    equipment(id: $id) {
+      id
+      name
+      description
+      createdAt
+      updatedAt
+      manager {
+        id
+        name
+        email
+      }
+    }
+  }
+`;
+
+export const CREATE_EQUIPMENT_MUTATION = `
+  mutation CreateEquipment($input: CreateEquipmentInput!) {
+    createEquipment(input: $input) {
+      id
+      name
+    }
+  }
+`;
+
 export const USERS_QUERY = `
   query Users($limit: Int!, $offset: Int!) {
     users(limit: $limit, offset: $offset) {

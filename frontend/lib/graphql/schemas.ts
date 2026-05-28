@@ -63,12 +63,29 @@ export const UserSchema = z.object({
   createdAt: z.string(),
 });
 
+export const EquipmentSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  manager: ManagerSchema.nullable().optional(),
+});
+
 export const ProjectsResponseSchema = z.object({
   projects: PaginatedShape(ProjectSchema),
 });
 
 export const UsersResponseSchema = z.object({
   users: PaginatedShape(UserSchema),
+});
+
+export const EquipmentsResponseSchema = z.object({
+  equipments: PaginatedShape(EquipmentSchema),
+});
+
+export const EquipmentByIdResponseSchema = z.object({
+  equipment: EquipmentSchema,
 });
 
 export const ProjectByIdResponseSchema = z.object({
@@ -79,5 +96,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export type Manager = z.infer<typeof ManagerSchema>;
 export type Material = z.infer<typeof MaterialSchema>;
 export type User = z.infer<typeof UserSchema>;
+export type Equipment = z.infer<typeof EquipmentSchema>;
 export type ProjectsResponse = z.infer<typeof ProjectsResponseSchema>;
 export type UsersResponse = z.infer<typeof UsersResponseSchema>;
+export type EquipmentsResponse = z.infer<typeof EquipmentsResponseSchema>;
