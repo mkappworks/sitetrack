@@ -1,60 +1,46 @@
-"use server";
+'use server';
 
-import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth";
-import { gqlClient } from "../graphql/client";
-import { CREATE_USER_MUTATION } from "../graphql/queries";
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../auth';
+import { gqlClient } from '../graphql/client';
+import { CREATE_USER_MUTATION } from '../graphql/queries';
+import { CreateUserSchema } from '../validation/forms';
 
-const ASSIGNABLE_ROLES = ["MANAGER", "VIEWER"] as const;
-type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+export type CreateUserResult = { ok: true } | { ok: false; error: string };
 
-export type CreateUserState = { error?: string; success?: boolean };
-
-export async function createUser(
-  prevState: CreateUserState,
-  formData: FormData,
-): Promise<CreateUserState> {
-  // Server actions are publicly callable RPC endpoints. Re-verify the caller
-  // is an admin before doing anything — the page-level guard doesn't apply here.
+export async function createUser(input: unknown): Promise<CreateUserResult> {
+  // Server Actions are publicly invokable; re-check the caller is an admin
+  // since the page-level guard doesn't apply on RPC.
   const session = await getServerSession(authOptions);
-  if (session?.user.role !== "ADMIN") {
-    throw new Error("Forbidden");
+  if (session?.user.role !== 'ADMIN') {
+    return { ok: false, error: 'Forbidden — admin role required.' };
   }
 
-  // Allowlist the role at the boundary. The backend also rejects ADMIN via
-  // @IsIn(ASSIGNABLE_ROLES) on the DTO, but failing here is faster and clearer.
-  const role = formData.get("role");
-  if (!ASSIGNABLE_ROLES.includes(role as AssignableRole)) {
-    throw new Error("Invalid role");
+  const parsed = CreateUserSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues.map((i) => i.message).join('; '),
+    };
   }
 
   const client = await gqlClient();
 
   try {
-    await client.request(CREATE_USER_MUTATION, {
-      input: {
-        email: formData.get("email") as string,
-        name: formData.get("name") as string,
-        password: formData.get("password") as string,
-        role,
-      },
-    });
+    await client.request(CREATE_USER_MUTATION, { input: parsed.data });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Failed to create user";
-
-    if (msg.includes("already registered")) {
-      return { error: "That email is already in use." };
+    const msg = err instanceof Error ? err.message : 'Failed to create user';
+    if (msg.includes('already registered')) {
+      return { ok: false, error: 'That email is already in use.' };
     }
-    if (msg.toLowerCase().includes("admin role")) {
-      // Backend's service guard rejected role=ADMIN — only reachable if a
-      // caller bypassed the frontend allowlist (e.g. crafted POST).
-      return { error: "ADMIN role cannot be assigned." };
+    if (msg.toLowerCase().includes('admin role')) {
+      return { ok: false, error: 'ADMIN role cannot be assigned.' };
     }
-    return { error: msg };
+    return { ok: false, error: msg };
   }
 
-  revalidatePath("/admin");
-  redirect("/admin");
+  revalidatePath('/admin');
+  redirect('/admin');
 }

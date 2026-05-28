@@ -1,10 +1,11 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
-import { updateProjectStatus } from '../lib/actions/project.actions';
+import { useUpdateProjectStatus } from '../lib/mutations/projects';
+import type { ProjectStatusEnum } from '../lib/validation/forms';
+import type { z } from 'zod';
 
-const PROJECT_STATUSES = ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
+type ProjectStatus = z.infer<typeof ProjectStatusEnum>;
+const PROJECT_STATUSES: ProjectStatus[] = ['PLANNING', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'CANCELLED'];
 
 export function UpdateStatusForm({
   projectId,
@@ -13,32 +14,30 @@ export function UpdateStatusForm({
   projectId: string;
   currentStatus: string;
 }) {
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
-
-  function handleChange(status: string) {
-    startTransition(async () => {
-      await updateProjectStatus(projectId, status);
-      router.refresh();
-    });
-  }
+  const mutation = useUpdateProjectStatus();
+  const optimisticStatus = mutation.variables?.status ?? currentStatus;
 
   return (
-    <div className="flex gap-2 flex-wrap">
-      {PROJECT_STATUSES.map((s) => (
-        <button
-          key={s}
-          onClick={() => handleChange(s)}
-          disabled={isPending || s === currentStatus}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-            s === currentStatus
-              ? 'bg-blue-600 text-white cursor-default'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          }`}
-        >
-          {s.replace('_', ' ')}
-        </button>
-      ))}
+    <div className="space-y-2">
+      <div className="flex gap-2 flex-wrap">
+        {PROJECT_STATUSES.map((s) => (
+          <button
+            key={s}
+            onClick={() => mutation.mutate({ id: projectId, status: s })}
+            disabled={mutation.isPending || s === optimisticStatus}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              s === optimisticStatus
+                ? 'bg-blue-600 text-white cursor-default'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {s.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+      {mutation.isError && (
+        <p className="text-xs text-red-600">Failed: {mutation.error.message}</p>
+      )}
     </div>
   );
 }

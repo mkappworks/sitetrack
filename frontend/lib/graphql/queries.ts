@@ -71,6 +71,16 @@ export const CREATE_PROJECT_MUTATION = `
   }
 `;
 
+export const CREATE_PROJECT_WITH_MATERIALS_MUTATION = `
+  mutation CreateProjectWithMaterials($input: CreateProjectWithMaterialsInput!) {
+    createProjectWithMaterials(input: $input) {
+      id
+      name
+      status
+    }
+  }
+`;
+
 export const UPDATE_PROJECT_MUTATION = `
   mutation UpdateProject($id: ID!, $input: UpdateProjectInput!) {
     updateProject(id: $id, input: $input) {
@@ -140,6 +150,9 @@ export const UPDATE_MATERIAL_MUTATION = `
   mutation UpdateMaterial($id: ID!, $input: UpdateMaterialInput!) {
     updateMaterial(id: $id, input: $input) {
       id
+      name
+      quantity
+      unit
       status
     }
   }
