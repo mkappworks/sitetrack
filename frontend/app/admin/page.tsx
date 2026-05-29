@@ -12,20 +12,22 @@ const PAGE_SIZE = 20;
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (session?.user.role !== 'ADMIN') redirect('/dashboard');
 
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, q } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
+  const search = q?.trim() || undefined;
 
   const queryClient = getQueryClient();
   await queryClient.prefetchQuery(
     usersQueryOptions({
       limit: PAGE_SIZE,
       offset,
+      search,
       token: session.accessToken,
     }),
   );
@@ -45,7 +47,7 @@ export default async function AdminPage({
       </div>
 
       <HydrationBoundary state={dehydrate(queryClient)}>
-        <UsersListClient page={page} pageSize={PAGE_SIZE} />
+        <UsersListClient page={page} pageSize={PAGE_SIZE} search={search} />
       </HydrationBoundary>
     </div>
   );

@@ -200,8 +200,8 @@ type Query {
   """Get a specific user by ID — Admin only. Non-admins use `me` for self."""
   user(id: ID!): User!
 
-  """List all users (paginated) — Admin only"""
-  users(limit: Int! = 20, offset: Int! = 0): UserPage!
+  """List all users (paginated + searchable) — Admin only"""
+  users(limit: Int! = 20, offset: Int! = 0, search: String): UserPage!
 }
 
 type Subscription {

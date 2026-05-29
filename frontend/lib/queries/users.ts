@@ -10,8 +10,8 @@ import {
 
 export const usersKeys = {
   all: ['users'] as const,
-  list: (limit: number, offset: number) =>
-    [...usersKeys.all, 'list', { limit, offset }] as const,
+  list: (limit: number, offset: number, search: string | undefined) =>
+    [...usersKeys.all, 'list', { limit, offset, search: search || undefined }] as const,
   managers: () => [...usersKeys.all, 'managers'] as const,
 };
 
@@ -30,14 +30,15 @@ export function managersQueryOptions(opts: { token?: string }) {
 export function usersQueryOptions(opts: {
   limit: number;
   offset: number;
+  search?: string;
   token?: string;
 }) {
   return queryOptions({
-    queryKey: usersKeys.list(opts.limit, opts.offset),
+    queryKey: usersKeys.list(opts.limit, opts.offset, opts.search),
     queryFn: async (): Promise<UsersResponse['users']> => {
       const raw = await gqlFetch<unknown>(
         USERS_QUERY,
-        { limit: opts.limit, offset: opts.offset },
+        { limit: opts.limit, offset: opts.offset, search: opts.search || null },
         opts.token,
       );
       const parsed = UsersResponseSchema.parse(raw);

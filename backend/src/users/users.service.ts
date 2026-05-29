@@ -37,12 +37,29 @@ export class UsersService {
     return this.usersRepo.save(user);
   }
 
-  async findAll(pagination: PaginationArgs): Promise<UserPage> {
-    const [items, total] = await this.usersRepo.findAndCount({
-      order: { createdAt: "DESC" },
-      take: pagination.limit,
-      skip: pagination.offset,
-    });
+  async findAll(
+    pagination: PaginationArgs,
+    search?: string | null,
+  ): Promise<UserPage> {
+    // Switch to QueryBuilder so the search filter can use case-insensitive
+    // LIKE on both name and email — admins typically search by either.
+    const qb = this.usersRepo
+      .createQueryBuilder("user")
+      .orderBy("user.createdAt", "DESC");
+
+    const trimmedSearch = search?.trim();
+    if (trimmedSearch) {
+      qb.andWhere(
+        "(LOWER(user.name) LIKE LOWER(:search) OR LOWER(user.email) LIKE LOWER(:search))",
+        { search: `%${trimmedSearch}%` },
+      );
+    }
+
+    const [items, total] = await qb
+      .take(pagination.limit)
+      .skip(pagination.offset)
+      .getManyAndCount();
+
     return { items, total, limit: pagination.limit, offset: pagination.offset };
   }
 

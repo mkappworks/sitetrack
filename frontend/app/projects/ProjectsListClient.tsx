@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { ProjectCard } from '../../components/ProjectCard';
+import { CardGridSkeleton } from '../../components/CardGridSkeleton';
 import { projectsQueryOptions } from '../../lib/queries/projects';
 
 interface Props {
@@ -86,9 +87,7 @@ export function ProjectsListClient({ page, pageSize, search }: Props) {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-16 text-gray-400">
-          <p>Loading…</p>
-        </div>
+        <CardGridSkeleton />
       ) : isError ? (
         <div className="text-center py-16 text-red-500">
           <p className="text-sm">Failed to load projects: {error.message}</p>

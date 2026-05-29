@@ -273,8 +273,8 @@ export const MANAGERS_QUERY = `
 `;
 
 export const USERS_QUERY = `
-  query Users($limit: Int!, $offset: Int!) {
-    users(limit: $limit, offset: $offset) {
+  query Users($limit: Int!, $offset: Int!, $search: String) {
+    users(limit: $limit, offset: $offset, search: $search) {
       items {
         id
         name

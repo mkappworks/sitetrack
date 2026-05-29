@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import { EquipmentCard } from '../../components/EquipmentCard';
+import { CardGridSkeleton } from '../../components/CardGridSkeleton';
 import { equipmentsQueryOptions } from '../../lib/queries/equipments';
 
 interface Props {
@@ -84,9 +85,7 @@ export function EquipmentsListClient({ page, pageSize, search }: Props) {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-16 text-gray-400">
-          <p>Loading…</p>
-        </div>
+        <CardGridSkeleton />
       ) : isError ? (
         <div className="text-center py-16 text-red-500">
           <p className="text-sm">Failed to load equipment: {error.message}</p>
