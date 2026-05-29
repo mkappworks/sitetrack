@@ -51,6 +51,18 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - **Logout is unauthenticated by design.** Possession of the refresh token IS the auth — if logout required an access token, a refresh token couldn't be revoked once its companion access token had expired. `logout()` always returns `true` so attackers can't probe "is this token valid?"
 - **Backend rate-limits** `login` 5/15min and `refreshTokens` 30/5min per IP via `@nestjs/throttler` + `GqlThrottlerGuard`. Login is tight (brute-force surface); refresh is generous (legitimate sessions refresh ~every 14m with parallel-tab headroom).
 - **No grace window on rotation** — strict invalidation. Multi-tab races are mitigated frontend-side via an in-process Promise dedupe (see `lib/auth.ts:refreshOnce`). Multi-process / multi-server races would still surface as forced re-login; Redis-backed lock is the production fix when scaling out.
+- **`sid` claim = session handle.** The access token carries `sid` = the refresh-token `familyId` (login issues the refresh token first so the access token can embed it; rotation preserves it). `JwtStrategy.validate` stashes it on `req.user.sid`; read it with `@CurrentSessionId()`. This is what lets the sessions UI flag "this device."
+
+### Active sessions (devices)
+- One live token per family (rotation revokes predecessors), so the set of live, unexpired `refresh_tokens` for a user IS their active-session list. `Session.id` exposed to GraphQL is the `familyId`; the row's hash is never exposed.
+- `revokeSessionForUser(userId, familyId)` is ownership-guarded — it revokes the family only if a live token in it belongs to that user, so the self-service `revokeSession` can't touch someone else's session even if an id leaks.
+- Resolver split: `mySessions`/`revokeSession` (self; current device flagged via `sid`), `userSessions`/`revokeUserSession`/`revokeAllUserSessions` (admin; `current` always false). Frontend: `/settings` (self) + `/admin/users/[id]` (admin), sharing `components/SessionList.tsx`.
+
+### Audit log
+- Append-only `audit_log` of destructive data ops + auth events (NOT routine create/update — that's noise). Actor id/email + target label are **denormalized snapshots** so the trail survives later deletion of the actor or target.
+- **Two write paths, by intent.** `AuditService.record()` is best-effort (swallows + logs failures) — used for auth events where a failed audit insert must never block a login. `recordTx(manager, …)` is transactional (rethrows) — used for destructive ops so the audit row commits atomically with the data change. Picking the wrong one defeats the purpose: swallowing inside a txn makes it pointless; throwing on a login audit blocks logins.
+- **Destructive ops are transactional.** project/equipment/material soft-delete/restore/purge run inside `dataSource.transaction`; every write (incl. `recordTx`) uses the passed manager. Equipments + materials services gained `@InjectDataSource` for this. Specs assert the write goes through the txn manager, not the repo.
+- **`AuditModule` is `@Global`** so services inject `AuditService` via `@Optional()` — unit specs construct without wiring it (audit becomes a no-op). It deliberately does NOT import `AuthModule` (the auth services depend on `AuditService`, so that edge would invert provider init-order and silently inject `undefined`); the resolver's guards are dependency-light and registered locally instead.
 
 ### Testing
 - Unit specs mock repositories + (when relevant) `DataSource`. Tests assert service contracts in isolation — they do NOT go through GraphQL routing or the `ValidationPipe`. That gap means resolver-level bugs (e.g. the search/PaginationArgs incident) won't be caught by unit tests; consider an integration test against a real Postgres when wiring resolver-level args.
@@ -76,7 +88,7 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 
 ### Mutations
 - Server Action does the write. `useMutation` wraps it for the UX layer (state machine, optimistic updates, cache invalidation).
-- Optimistic lifecycle: `onMutate` (snapshot → patch → return ctx) → `onError` (restore from ctx) → `onSettled` (invalidate the affected cache key). All four optimistic hooks in `lib/mutations/projects.ts` follow this pattern; the rollback contract is locked in by `projects.test.ts`.
+- Optimistic lifecycle: `onMutate` (snapshot → patch → return ctx) → `onError` (restore from ctx) → `onSettled` (invalidate the affected cache key). Extracted into `useOptimisticDetailMutation(detailKey, patch, extraInvalidateKeys)` in `lib/mutations/optimistic.ts` — rollback restores the snapshot (no inverse function needed), so each hook declares only its key + pure patch. The five project/material optimistic hooks are built on it; the contract is locked by `projects.test.ts` (status patch + material array patch/rollback).
 - For mutations that don't need optimism, just `onSuccess: () => invalidateQueries(...)`.
 - `revalidatePath` (Next.js) vs `invalidateQueries` (TanStack Query) invalidate DIFFERENT caches. The detail page subscribes via `useQuery`, so `invalidateQueries` is what reactivates it. The list pages use prefetch + hydration; `revalidatePath` re-runs the Server Component on next navigation. Use whichever matches the consumer.
 
@@ -96,7 +108,8 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 
 ### NextAuth + refresh-token integration
 - The JWT cookie stores `accessToken`, `refreshToken`, and `accessTokenExpiresAt` (ms since epoch). The `session()` callback exposes ONLY `accessToken` to consumers — refresh stays server-side, never crosses into Client Component code.
-- **Proactive refresh** in the `jwt` callback: when `Date.now() > expiresAt - 60_000`, call the backend's `refreshTokens` mutation, persist the rotated pair on the JWT, and return. This is the primary refresh path; 401-retry on the client is the deferred fallback.
+- **Proactive refresh** in the `jwt` callback: when `Date.now() > expiresAt - 60_000`, call the backend's `refreshTokens` mutation, persist the rotated pair on the JWT, and return. This is the primary refresh path.
+- **Client-side 401 retry** (the fallback) lives in `gqlFetch`: on an auth error, in the browser only, it calls `getSession()` (re-runs the jwt callback → rotates), then retries ONCE with the fresh token. Guards: single retry via an internal flag; only retries if the refreshed token actually *differs* (a genuine permission error won't loop). Server-side requests skip it — `getServerSession` is always fresh.
 - **Parallel-tab race dedupe** via in-process `Map<refreshToken, Promise>`. First jwt() call sets the promise; concurrent callers await the same promise and receive the same rotated tokens — avoids triggering backend reuse-detection (which would revoke the whole family) on legitimate same-process races.
 - **Refresh failure** (network down, reuse-detection fired, token expired) → set `token.error = 'RefreshAccessTokenError'` and clear access fields. The `session` callback surfaces `session.error`, and consumers/middleware can react.
 - **signOut event** posts the refresh token to the backend's `logout` mutation as a best-effort revocation. Failure is swallowed — the client cookie is already cleared by NextAuth.
@@ -142,9 +155,7 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 These are deferred decisions, not oversights:
 
 - **Cursor pagination on field resolvers** (`Project.materials`, `User.projects`). At seeded scale they're fine. The trade is "DataLoader batching" vs "per-key cursor" — when a project gets >100 materials, take the trade.
-- **Client-side 401 retry interceptor.** Proactive refresh in the `jwt` callback (60s lead) handles the common case. A request slipping through with an about-to-expire token still surfaces to the user as a one-off error rather than a transparent retry. Wire when it becomes a real papercut.
 - **Multi-process refresh-token race dedupe.** In-process `Map` covers same-process races; multi-process / multi-server deployments would still trigger reuse-detection on a benign parallel-tab refresh. Redis-backed lock is the prod fix.
-- **Search indexes** (`pg_trgm` + GIN). At seeded scale the `LIKE '%term%'` is fine; at 10k+ rows you'll need this.
-- **Optimistic mutation pattern extraction**. Five consumers (`useUpdateProjectStatus`, `useAddMaterial`, `useUpdateMaterialStatus`, `useUpdateMaterialQuantity`, `useRemoveMaterial`) follow identical onMutate/onError/onSettled shapes. The threshold for extraction has been crossed; the friction is finding the right generic signature (`detailKey` + `patchFn` + `inverseFn`). Worth a small refactor commit when next mutation joins.
-- **Audit log** (who deleted what when). Important when delete becomes a more frequent action; orthogonal to the rest.
-- **Active-sessions UI.** `refresh_tokens` already records `userAgent` + `ipAddress` per login; surface as "your devices" + per-session revoke in `/admin` or `/settings`.
+- **Migrations not auto-run.** Dev uses `synchronize: true`; the trigram-index migration must be applied with `npm run migration:run` (and in prod). The two are not reconciled — `synchronize` won't create the trigram indexes (they need raw SQL), so dev relies on the migration too for search to be indexed.
+- **Resolver-level integration tests.** Unit specs mock repos and don't exercise guards/throttle/validation. The session + audit resolvers' auth gating is reasoned, not tested through GraphQL. An integration suite against real Postgres would close it.
+- **Layout duplication.** Five route-group layouts (`dashboard`/`projects`/`equipments`/`admin`/`settings`) are identical sidebar shells. Hoist to a shared layout when the next one appears.
