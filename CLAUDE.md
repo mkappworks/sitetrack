@@ -93,10 +93,15 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 ### Manager-assignment dropdown
 - `components/ManagerSelect.tsx` is the reusable admin-only field. Internally `useSession()` + `useQuery(managersQueryOptions)`; renders `null` for non-admins so callers don't need to gate.
 - All schemas that accept `managerId` declare it as `z.string()` (empty-string allowed) to satisfy TanStack Form's Standard Schema interop. The Server Action then maps `'' → null` (explicit unassign) and a real uuid → uuid. **Don't use `|| undefined` for `managerId`** — that swallows the unassign intent.
+- On edit forms, pass `currentManagerId` + `currentManagerName` so the dropdown shows "Currently: <name>" above + "— current" on the matching option + "· unsaved change" in amber when the form value drifts from the saved value. Create forms omit both props (no current assignment yet).
 
-### Trash / Restore
-- Backend: `findDeleted()` with `withDeleted: true` + `where: { deletedAt: Not(IsNull()) }`. `restore(id)` calls `repo.restore(id)` then re-fetches with relations (restore itself returns void).
-- Frontend: `/admin/trash` with two sections (projects + equipment). `useRestoreProject` / `useRestoreEquipment` hooks invalidate BOTH the trash cache (row drops out) and the active-list cache (row reappears).
+### Trash / Restore / Purge
+- Backend `findDeleted()`: `withDeleted: true` + `where: { deletedAt: Not(IsNull()) }`. Returns soft-deleted rows only.
+- Backend `restore(id)`: calls `repo.restore(id)` then re-fetches with relations (restore itself returns void).
+- Backend `purge(id)`: hard delete. Loads with `withDeleted: true`, throws `BadRequestException` if `deletedAt` is null (refuses to purge an active row — the two-step "soft-delete first, then purge" flow is enforced server-side and locked in by spec). Then `repo.delete(id)`. Materials cascade via the `@ManyToOne` FK `onDelete: 'CASCADE'`.
+- Frontend `/admin/trash` has two sections; each row gets Restore (button) + Purge (red link → ConfirmDeleteModal with stronger copy).
+- `useRestoreProject` / `useRestoreEquipment` invalidate BOTH trash + active-list caches. `usePurgeProject` / `usePurgeEquipment` invalidate the same two caches (the active-list invalidation is a safety net — the row was already absent there).
+- Expose `@DeleteDateColumn` to GraphQL via `@Field({ nullable: true })` when you want the trash UI to display "deleted at" accurately — the column otherwise stays on the entity but invisible to clients.
 
 ### Tests
 - `npm test` (Vitest 4.1 + RTL + jsdom). Setup file `test/setup.ts` registers `jest-dom` matchers AND globally stubs `next-auth/react` with a default VIEWER session so any component using `useSession()` (e.g. `ManagerSelect`) renders in jsdom without a real `SessionProvider`. Individual tests can override via `vi.mocked(useSession)`.
@@ -126,8 +131,7 @@ These are deferred decisions, not oversights:
 - **GraphQL depth / complexity limits**. No `graphql-depth-limit`-style middleware. A deeply nested query (`project → manager → projects → ...`) is a DoS sink. Apollo accepts `validationRules` — 2-line add when it's time.
 - **Search indexes** (`pg_trgm` + GIN). At seeded scale the `LIKE '%term%'` is fine; at 10k+ rows you'll need this.
 - **Optimistic mutation pattern extraction**. Five consumers (`useUpdateProjectStatus`, `useAddMaterial`, `useUpdateMaterialStatus`, `useUpdateMaterialQuantity`, `useRemoveMaterial`) follow identical onMutate/onError/onSettled shapes. The threshold for extraction has been crossed; the friction is finding the right generic signature (`detailKey` + `patchFn` + `inverseFn`). Worth a small refactor commit when next mutation joins.
-- **Permanent delete from /admin/trash**. Soft-deleted rows stay forever. A "Purge" action that runs `repo.delete()` (real DELETE) would close the loop — backend mutation + admin-only UI.
-- **Bulk select / bulk restore**. One row at a time on trash.
+- **Bulk select / bulk restore / bulk purge**. One row at a time on trash.
 - **Audit log** (who deleted what when). Important when delete becomes a more frequent action; orthogonal to the rest.
 
 ---
@@ -142,6 +146,6 @@ These are deferred decisions, not oversights:
 - Optimistic mutation pattern: `frontend/lib/mutations/projects.ts:useUpdateProjectStatus` + test at `frontend/lib/mutations/projects.test.ts`.
 - Manager-edit relation-merge fix: `backend/src/projects/projects.service.ts:update` + same in `equipments.service.ts`. Commit `1f11724`.
 - Aggregated stats query: `backend/src/projects/projects.service.ts:statusCounts` + dto + dashboard consumer in `frontend/app/dashboard/page.tsx`. Commit `8f81df3`.
-- Soft delete + Trash: `@DeleteDateColumn` on entities + `softRemove`/`restore` in services + `/admin/trash` page. Commits `6f3578a`, `1f11724`, `07dc4dd`.
+- Soft delete + Trash + Purge: `@DeleteDateColumn` on entities + `softRemove`/`restore`/`purge` in services + `/admin/trash` page. Commits `6f3578a`, `1f11724`, `07dc4dd`, `4b34fd2`. Purge guards via `BadRequestException` if the row is active — refuses to purge anything that hasn't been soft-deleted first.
 - Reusable destructive modal: `frontend/components/ConfirmDeleteModal.tsx`. Commit `d54eec8`.
 - Error boundaries: `frontend/app/*/error.tsx` + shared `components/ErrorState.tsx`. Commit `5e8c0f0`.
