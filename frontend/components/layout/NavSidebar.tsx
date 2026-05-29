@@ -31,7 +31,7 @@ export function NavSidebar({ user }: Props) {
   );
 
   return (
-    <aside className="w-56 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
+    <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col">
       {/* Logo */}
       <div className="px-5 py-5 border-b border-gray-100">
         <span className="text-lg font-semibold text-gray-900">SiteTrack</span>
