@@ -78,14 +78,20 @@ export class EquipmentsResolver {
   @Mutation(() => Equipment)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  restoreEquipment(@Args("id", { type: () => ID }) id: string): Promise<Equipment> {
-    return this.equipmentsService.restore(id);
+  restoreEquipment(
+    @Args("id", { type: () => ID }) id: string,
+    @CurrentUser() user: User,
+  ): Promise<Equipment> {
+    return this.equipmentsService.restore(id, user);
   }
 
   @Mutation(() => Boolean, { description: "Permanently delete a soft-deleted equipment — Admin only" })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  purgeEquipment(@Args("id", { type: () => ID }) id: string): Promise<boolean> {
-    return this.equipmentsService.purge(id);
+  purgeEquipment(
+    @Args("id", { type: () => ID }) id: string,
+    @CurrentUser() user: User,
+  ): Promise<boolean> {
+    return this.equipmentsService.purge(id, user);
   }
 }

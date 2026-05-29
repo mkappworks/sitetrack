@@ -136,6 +136,25 @@ export const UserByIdResponseSchema = z.object({
   user: UserSchema,
 });
 
+// action is kept as a plain string (not a z.enum) so a new backend
+// AuditAction value never fails wire validation — the UI formats whatever
+// it receives.
+export const AuditLogEntrySchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  actorId: z.string().nullable().optional(),
+  actorEmail: z.string().nullable().optional(),
+  targetType: z.string().nullable().optional(),
+  targetId: z.string().nullable().optional(),
+  targetLabel: z.string().nullable().optional(),
+  ipAddress: z.string().nullable().optional(),
+  createdAt: z.string(),
+});
+
+export const AuditLogResponseSchema = z.object({
+  auditLog: PaginatedShape(AuditLogEntrySchema),
+});
+
 export type Project = z.infer<typeof ProjectSchema>;
 export type Manager = z.infer<typeof ManagerSchema>;
 export type Material = z.infer<typeof MaterialSchema>;
@@ -146,3 +165,4 @@ export type UsersResponse = z.infer<typeof UsersResponseSchema>;
 export type EquipmentsResponse = z.infer<typeof EquipmentsResponseSchema>;
 export type ProjectStatusCount = z.infer<typeof ProjectStatusCountSchema>;
 export type Session = z.infer<typeof SessionSchema>;
+export type AuditLogEntry = z.infer<typeof AuditLogEntrySchema>;

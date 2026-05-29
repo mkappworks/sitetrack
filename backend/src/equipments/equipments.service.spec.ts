@@ -1,6 +1,6 @@
 import { Test, TestingModule } from "@nestjs/testing";
-import { getRepositoryToken } from "@nestjs/typeorm";
-import { type ObjectLiteral, Repository } from "typeorm";
+import { getRepositoryToken, getDataSourceToken } from "@nestjs/typeorm";
+import { DataSource, EntityManager, type ObjectLiteral, Repository } from "typeorm";
 import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { EquipmentsService } from "./equipments.service";
 import { Equipment } from "./entities/equipment.entity";
@@ -53,14 +53,39 @@ const mockEquipment: Equipment = {
 describe("EquipmentsService", () => {
   let equipmentsService: EquipmentsService;
   let equipmentRepo: MockRepository<Equipment>;
+  let txnManager: {
+    softRemove: jest.Mock;
+    restore: jest.Mock;
+    delete: jest.Mock;
+    findOne: jest.Mock;
+    save: jest.Mock;
+  };
+  let dataSource: { transaction: jest.Mock };
 
   beforeEach(async () => {
+    txnManager = {
+      softRemove: jest.fn(),
+      restore: jest.fn(),
+      delete: jest.fn(),
+      findOne: jest.fn(),
+      save: jest.fn(),
+    };
+    dataSource = {
+      transaction: jest.fn((cb: (m: EntityManager) => Promise<unknown>) =>
+        cb(txnManager as unknown as EntityManager),
+      ),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EquipmentsService,
         {
           provide: getRepositoryToken(Equipment),
           useValue: createMockRepository<Equipment>(),
+        },
+        {
+          provide: getDataSourceToken(),
+          useValue: dataSource as unknown as DataSource,
         },
       ],
     }).compile();
@@ -204,14 +229,16 @@ describe("EquipmentsService", () => {
   });
 
   describe("remove", () => {
-    it("admin can remove any equipment", async () => {
+    it("admin can remove any equipment (write goes through the transaction manager)", async () => {
       equipmentRepo.findOne!.mockResolvedValue({ ...mockEquipment });
-      equipmentRepo.softRemove!.mockResolvedValue({ ...mockEquipment });
+      txnManager.softRemove.mockResolvedValue({ ...mockEquipment });
 
       const result = await equipmentsService.remove("equipment-1", mockAdmin);
 
       expect(result).toBe(true);
-      expect(equipmentRepo.softRemove).toHaveBeenCalledTimes(1);
+      expect(txnManager.softRemove).toHaveBeenCalledTimes(1);
+      expect(equipmentRepo.softRemove).not.toHaveBeenCalled();
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     });
 
     it("throws ForbiddenException when manager tries to remove another's equipment", async () => {
@@ -317,12 +344,12 @@ describe("EquipmentsService", () => {
   });
 
   describe("purge", () => {
-    it("hard-deletes soft-deleted equipment", async () => {
+    it("hard-deletes soft-deleted equipment through the transaction manager", async () => {
       equipmentRepo.findOne!.mockResolvedValue({
         ...mockEquipment,
         deletedAt: new Date(),
       });
-      equipmentRepo.delete!.mockResolvedValue({ affected: 1 });
+      txnManager.delete.mockResolvedValue({ affected: 1 });
 
       const result = await equipmentsService.purge("equipment-1");
 
@@ -330,7 +357,8 @@ describe("EquipmentsService", () => {
         where: { id: "equipment-1" },
         withDeleted: true,
       });
-      expect(equipmentRepo.delete).toHaveBeenCalledWith("equipment-1");
+      expect(txnManager.delete).toHaveBeenCalledWith(Equipment, "equipment-1");
+      expect(equipmentRepo.delete).not.toHaveBeenCalled();
       expect(result).toBe(true);
     });
 

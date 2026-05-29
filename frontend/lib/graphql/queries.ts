@@ -194,6 +194,27 @@ export const ME_QUERY = `
   }
 `;
 
+export const AUDIT_LOG_QUERY = `
+  query AuditLog($limit: Int!, $offset: Int!) {
+    auditLog(limit: $limit, offset: $offset) {
+      items {
+        id
+        action
+        actorId
+        actorEmail
+        targetType
+        targetId
+        targetLabel
+        ipAddress
+        createdAt
+      }
+      total
+      limit
+      offset
+    }
+  }
+`;
+
 export const USER_BY_ID_QUERY = `
   query User($id: ID!) {
     user(id: $id) {

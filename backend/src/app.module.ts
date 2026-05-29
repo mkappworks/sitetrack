@@ -15,6 +15,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { MaterialsModule } from './materials/materials.module';
 import { HealthModule } from './health/health.module';
 import { EquipmentsModule } from './equipments/equipments.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { EquipmentsModule } from './equipments/equipments.module';
 
     UsersModule,
     AuthModule,
+    AuditModule,
     ProjectsModule,
     MaterialsModule,
     HealthModule,

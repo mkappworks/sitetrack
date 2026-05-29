@@ -55,13 +55,24 @@ const mockProject: Project = {
 describe("ProjectsService", () => {
   let projectService: ProjectsService;
   let projectsRepo: MockRepository<Project>;
-  let txnManager: { create: jest.Mock; save: jest.Mock };
+  let txnManager: {
+    create: jest.Mock;
+    save: jest.Mock;
+    softRemove: jest.Mock;
+    restore: jest.Mock;
+    delete: jest.Mock;
+    findOne: jest.Mock;
+  };
   let dataSource: { transaction: jest.Mock };
 
   beforeEach(async () => {
     txnManager = {
       create: jest.fn((_entity: unknown, data: object) => ({ ...data })),
       save: jest.fn(),
+      softRemove: jest.fn(),
+      restore: jest.fn(),
+      delete: jest.fn(),
+      findOne: jest.fn(),
     };
     dataSource = {
       transaction: jest.fn((cb: (m: EntityManager) => Promise<unknown>) =>
@@ -174,14 +185,18 @@ describe("ProjectsService", () => {
   });
 
   describe("remove", () => {
-    it("admin can remove any project", async () => {
+    it("admin can remove any project (write goes through the transaction manager)", async () => {
       projectsRepo.findOne!.mockResolvedValue({ ...mockProject });
-      projectsRepo.softRemove!.mockResolvedValue({ ...mockProject });
+      txnManager.softRemove.mockResolvedValue({ ...mockProject });
 
       const result = await projectService.remove("project-1", mockAdmin);
 
       expect(result).toBe(true);
-      expect(projectsRepo.softRemove).toHaveBeenCalledTimes(1);
+      // softRemove runs on the txn manager, not the repo — proves the write
+      // is inside the transaction (so the audit insert is atomic with it).
+      expect(txnManager.softRemove).toHaveBeenCalledTimes(1);
+      expect(projectsRepo.softRemove).not.toHaveBeenCalled();
+      expect(dataSource.transaction).toHaveBeenCalledTimes(1);
     });
 
     it("throws ForbiddenException when manager tries to remove another's project", async () => {
@@ -386,12 +401,12 @@ describe("ProjectsService", () => {
   });
 
   describe("purge", () => {
-    it("hard-deletes a soft-deleted project", async () => {
+    it("hard-deletes a soft-deleted project through the transaction manager", async () => {
       projectsRepo.findOne!.mockResolvedValue({
         ...mockProject,
         deletedAt: new Date(),
       });
-      projectsRepo.delete!.mockResolvedValue({ affected: 1 });
+      txnManager.delete.mockResolvedValue({ affected: 1 });
 
       const result = await projectService.purge("project-1");
 
@@ -399,7 +414,8 @@ describe("ProjectsService", () => {
         where: { id: "project-1" },
         withDeleted: true,
       });
-      expect(projectsRepo.delete).toHaveBeenCalledWith("project-1");
+      expect(txnManager.delete).toHaveBeenCalledWith(Project, "project-1");
+      expect(projectsRepo.delete).not.toHaveBeenCalled();
       expect(result).toBe(true);
     });
 

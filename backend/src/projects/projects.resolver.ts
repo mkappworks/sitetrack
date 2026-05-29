@@ -107,15 +107,21 @@ export class ProjectsResolver {
   @Mutation(() => Project)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  restoreProject(@Args('id', { type: () => ID }) id: string): Promise<Project> {
-    return this.projectsService.restore(id);
+  restoreProject(
+    @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() user: User,
+  ): Promise<Project> {
+    return this.projectsService.restore(id, user);
   }
 
   @Mutation(() => Boolean, { description: 'Permanently delete a soft-deleted project — Admin only' })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN)
-  purgeProject(@Args('id', { type: () => ID }) id: string): Promise<boolean> {
-    return this.projectsService.purge(id);
+  purgeProject(
+    @Args('id', { type: () => ID }) id: string,
+    @CurrentUser() user: User,
+  ): Promise<boolean> {
+    return this.projectsService.purge(id, user);
   }
 
   // --- Subscription ---

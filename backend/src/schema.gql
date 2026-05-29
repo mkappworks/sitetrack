@@ -2,6 +2,38 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+enum AuditAction {
+  EQUIPMENT_PURGED
+  EQUIPMENT_RESTORED
+  EQUIPMENT_SOFT_DELETED
+  MATERIAL_DELETED
+  PROJECT_PURGED
+  PROJECT_RESTORED
+  PROJECT_SOFT_DELETED
+  REFRESH_REUSE_DETECTED
+  USER_LOGIN
+  USER_LOGOUT
+}
+
+type AuditLogEntry {
+  action: AuditAction!
+  actorEmail: String
+  actorId: ID
+  createdAt: DateTime!
+  id: ID!
+  ipAddress: String
+  targetId: String
+  targetLabel: String
+  targetType: String
+}
+
+type AuditLogPage {
+  items: [AuditLogEntry!]!
+  limit: Int!
+  offset: Int!
+  total: Int!
+}
+
 type AuthPayload {
   accessToken: String!
   accessTokenExpiresAt: String!
@@ -196,6 +228,9 @@ type ProjectStatusCount {
 }
 
 type Query {
+  """Audit log (paginated, newest first) — Admin only"""
+  auditLog(limit: Int! = 20, offset: Int! = 0): AuditLogPage!
+
   """Soft-deleted equipment — Admin only"""
   deletedEquipments: [Equipment!]!
 

@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { Injectable, UnauthorizedException, Optional } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { UsersService } from "../users/users.service";
@@ -6,6 +6,8 @@ import { LoginInput, AuthPayload } from "./dto/auth.dto";
 import { User } from "../users/entities/user.entity";
 import { JwtPayload } from "./strategies/jwt.strategy";
 import { RefreshTokenService } from "./refresh-token.service";
+import { AuditService } from "../audit/audit.service";
+import { AuditAction } from "../audit/entities/audit-log.entity";
 
 interface RequestContext {
   userAgent?: string | null;
@@ -23,6 +25,9 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly refreshTokens: RefreshTokenService,
     config: ConfigService,
+    // @Optional so unit specs construct without the AuditModule.
+    @Optional()
+    private readonly audit?: AuditService,
   ) {
     this.accessTokenTtlMs = parseDurationMs(
       config.get<string>("JWT_EXPIRES_IN", "15m"),
@@ -38,7 +43,13 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    return this.issueTokens(user, ctx);
+    const payload = await this.issueTokens(user, ctx);
+    await this.audit?.record({
+      action: AuditAction.USER_LOGIN,
+      actor: { id: user.id, email: user.email },
+      ipAddress: ctx.ipAddress ?? null,
+    });
+    return payload;
   }
 
   async refresh(rawRefreshToken: string, ctx: RequestContext = {}): Promise<AuthPayload> {
@@ -62,7 +73,15 @@ export class AuthService {
   async logout(rawRefreshToken: string): Promise<boolean> {
     // Always returns true — we don't leak whether the token existed.
     // The endpoint is idempotent from the client's perspective.
-    await this.refreshTokens.revoke(rawRefreshToken);
+    const userId = await this.refreshTokens.revoke(rawRefreshToken);
+    if (userId) {
+      await this.audit?.record({
+        action: AuditAction.USER_LOGOUT,
+        actor: { id: userId },
+        targetType: "User",
+        targetId: userId,
+      });
+    }
     return true;
   }
 

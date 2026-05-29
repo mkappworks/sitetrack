@@ -2,12 +2,15 @@ import {
   Injectable,
   UnauthorizedException,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, MoreThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import { RefreshToken } from './entities/refresh-token.entity';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
 
 export interface IssuedRefreshToken {
   rawToken: string;
@@ -29,6 +32,9 @@ export class RefreshTokenService {
     @InjectRepository(RefreshToken)
     private readonly repo: Repository<RefreshToken>,
     config: ConfigService,
+    // @Optional so unit specs construct without the AuditModule.
+    @Optional()
+    private readonly audit?: AuditService,
   ) {
     const days = parseInt(
       config.get<string>('REFRESH_TOKEN_TTL_DAYS', '30'),
@@ -89,6 +95,13 @@ export class RefreshTokenService {
           `(user ${existing.userId}). Revoking entire family.`,
       );
       await this.revokeFamily(existing.familyId);
+      await this.audit?.record({
+        action: AuditAction.REFRESH_REUSE_DETECTED,
+        actor: { id: existing.userId },
+        targetType: 'User',
+        targetId: existing.userId,
+        ipAddress: ctx.ipAddress ?? null,
+      });
       throw new UnauthorizedException('Refresh token reuse detected');
     }
 
@@ -118,13 +131,17 @@ export class RefreshTokenService {
   }
 
   // Logout — revoke the presented token only. Does NOT revoke the family;
-  // the user may legitimately be logged in on other devices.
-  async revoke(rawToken: string): Promise<void> {
+  // the user may legitimately be logged in on other devices. Returns the
+  // owning userId (or null if the token was unknown) so the caller can
+  // audit the logout.
+  async revoke(rawToken: string): Promise<string | null> {
     const tokenHash = this.hash(rawToken);
+    const existing = await this.repo.findOne({ where: { tokenHash } });
     await this.repo.update(
       { tokenHash, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
+    return existing?.userId ?? null;
   }
 
   // Revoke every live token in a family. Used by reuse-detection.

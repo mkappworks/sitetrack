@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { href: '/projects', label: 'Projects', icon: '🏗' },
   { href: '/equipments', label: 'Equipment', icon: '🛠' },
   { href: '/admin', label: 'Admin', icon: '⚙', adminOnly: true },
+  { href: '/admin/audit', label: 'Audit log', icon: '📋', adminOnly: true },
   { href: '/admin/trash', label: 'Trash', icon: '🗑', adminOnly: true },
   { href: '/settings', label: 'Settings', icon: '👤' },
 ];

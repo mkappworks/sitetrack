@@ -3,22 +3,34 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Not, Repository } from "typeorm";
+import { InjectRepository, InjectDataSource } from "@nestjs/typeorm";
+import { DataSource, IsNull, Not, Repository } from "typeorm";
 import { CreateEquipmentInput } from "./dto/create-equipment.input";
 import { UpdateEquipmentInput } from "./dto/update-equipment.input";
 import { EquipmentPage } from "./dto/equipment-page.type";
 import { Equipment } from "./entities/equipment.entity";
 import { PaginationArgs } from "../common/pagination/paginated.type";
 import { User, UserRole } from "../users/entities/user.entity";
+import { AuditService } from "../audit/audit.service";
+import { AuditAction } from "../audit/entities/audit-log.entity";
 
 @Injectable()
 export class EquipmentsService {
   constructor(
     @InjectRepository(Equipment)
     private readonly equipmentRepo: Repository<Equipment>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    // @Optional so unit specs construct without the AuditModule wired.
+    @Optional()
+    private readonly audit?: AuditService,
   ) {}
+
+  private actorOf(user: User) {
+    return { id: user.id, email: user.email };
+  }
 
   async create(input: CreateEquipmentInput, currentUser: User): Promise<Equipment> {
     const equipment = this.equipmentRepo.create({
@@ -94,7 +106,16 @@ export class EquipmentsService {
   async remove(id: string, currentUser: User): Promise<boolean> {
     const equipment = await this.findOne(id);
     this.assertCanModify(equipment, currentUser);
-    await this.equipmentRepo.softRemove(equipment);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.softRemove(equipment);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.EQUIPMENT_SOFT_DELETED,
+        actor: this.actorOf(currentUser),
+        targetType: "Equipment",
+        targetId: equipment.id,
+        targetLabel: equipment.name,
+      });
+    });
     return true;
   }
 
@@ -107,17 +128,26 @@ export class EquipmentsService {
     });
   }
 
-  async restore(id: string): Promise<Equipment> {
-    await this.equipmentRepo.restore(id);
-    const equipment = await this.equipmentRepo.findOne({
-      where: { id },
-      relations: { manager: true },
+  async restore(id: string, actor?: User): Promise<Equipment> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.restore(Equipment, id);
+      const equipment = await manager.findOne(Equipment, {
+        where: { id },
+        relations: { manager: true },
+      });
+      if (!equipment) throw new NotFoundException(`Equipment ${id} not found after restore`);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.EQUIPMENT_RESTORED,
+        actor: actor ? this.actorOf(actor) : null,
+        targetType: "Equipment",
+        targetId: equipment.id,
+        targetLabel: equipment.name,
+      });
+      return equipment;
     });
-    if (!equipment) throw new NotFoundException(`Equipment ${id} not found after restore`);
-    return equipment;
   }
 
-  async purge(id: string): Promise<boolean> {
+  async purge(id: string, actor?: User): Promise<boolean> {
     const equipment = await this.equipmentRepo.findOne({
       where: { id },
       withDeleted: true,
@@ -126,7 +156,16 @@ export class EquipmentsService {
     if (!equipment.deletedAt) {
       throw new BadRequestException("Cannot purge active equipment; soft-delete it first");
     }
-    await this.equipmentRepo.delete(id);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(Equipment, id);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.EQUIPMENT_PURGED,
+        actor: actor ? this.actorOf(actor) : null,
+        targetType: "Equipment",
+        targetId: equipment.id,
+        targetLabel: equipment.name,
+      });
+    });
     return true;
   }
 

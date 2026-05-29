@@ -1,7 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Material } from './entities/material.entity';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
+import { User } from '../users/entities/user.entity';
 import { InputType, Field, Float } from '@nestjs/graphql';
 import { IsString, IsNumber, IsEnum, IsUUID, IsOptional, Min } from 'class-validator';
 import { MaterialStatus } from './entities/material.entity';
@@ -30,6 +33,11 @@ export class MaterialsService {
   constructor(
     @InjectRepository(Material)
     private readonly materialsRepo: Repository<Material>,
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
+    // @Optional so unit specs construct without the AuditModule.
+    @Optional()
+    private readonly audit?: AuditService,
   ) {}
 
   async findByProject(
@@ -65,8 +73,18 @@ export class MaterialsService {
     return this.materialsRepo.save(m);
   }
 
-  async remove(id: string): Promise<boolean> {
-    await this.materialsRepo.softRemove(await this.findOne(id));
+  async remove(id: string, actor?: User): Promise<boolean> {
+    const material = await this.findOne(id);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.softRemove(material);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.MATERIAL_DELETED,
+        actor: actor ? { id: actor.id, email: actor.email } : null,
+        targetType: 'Material',
+        targetId: material.id,
+        targetLabel: material.name,
+      });
+    });
     return true;
   }
 }

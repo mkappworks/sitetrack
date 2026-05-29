@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Optional } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { Project, ProjectStatus } from './entities/project.entity';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction } from '../audit/entities/audit-log.entity';
 import {
   CreateProjectInput,
   CreateProjectMaterialInput,
@@ -20,7 +22,15 @@ export class ProjectsService {
     private readonly projectsRepo: Repository<Project>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    // @Optional so unit specs that don't wire the AuditModule still construct
+    // the service; in the running app the @Global AuditModule provides it.
+    @Optional()
+    private readonly audit?: AuditService,
   ) {}
+
+  private actorOf(user: User) {
+    return { id: user.id, email: user.email };
+  }
 
   async findAll(
     user: User,
@@ -133,7 +143,18 @@ export class ProjectsService {
     // cascade: ['soft-remove'] on the OneToMany relation.
     const project = await this.findOne(id);
     this.assertCanModify(project, currentUser);
-    await this.projectsRepo.softRemove(project);
+    // Soft-delete + audit commit atomically: no trashed project without its
+    // audit trail, and an audit failure rolls the delete back.
+    await this.dataSource.transaction(async (manager) => {
+      await manager.softRemove(project);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.PROJECT_SOFT_DELETED,
+        actor: this.actorOf(currentUser),
+        targetType: 'Project',
+        targetId: project.id,
+        targetLabel: project.name,
+      });
+    });
     return true;
   }
 
@@ -146,18 +167,27 @@ export class ProjectsService {
     });
   }
 
-  async restore(id: string): Promise<Project> {
-    await this.projectsRepo.restore(id);
-    // restore() doesn't return the row; fetch fresh with relations.
-    const project = await this.projectsRepo.findOne({
-      where: { id },
-      relations: { manager: true },
+  async restore(id: string, actor?: User): Promise<Project> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.restore(Project, id);
+      // restore() doesn't return the row; fetch fresh with relations.
+      const project = await manager.findOne(Project, {
+        where: { id },
+        relations: { manager: true },
+      });
+      if (!project) throw new NotFoundException(`Project ${id} not found after restore`);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.PROJECT_RESTORED,
+        actor: actor ? this.actorOf(actor) : null,
+        targetType: 'Project',
+        targetId: project.id,
+        targetLabel: project.name,
+      });
+      return project;
     });
-    if (!project) throw new NotFoundException(`Project ${id} not found after restore`);
-    return project;
   }
 
-  async purge(id: string): Promise<boolean> {
+  async purge(id: string, actor?: User): Promise<boolean> {
     // Refuse if the row is active — purge is for trashed rows only.
     // The two-step flow (soft delete first, then purge) prevents accidental
     // hard-deletes via this endpoint. Materials cascade via the FK
@@ -170,7 +200,16 @@ export class ProjectsService {
     if (!project.deletedAt) {
       throw new BadRequestException('Cannot purge an active project; soft-delete it first');
     }
-    await this.projectsRepo.delete(id);
+    await this.dataSource.transaction(async (manager) => {
+      await manager.delete(Project, id);
+      await this.audit?.recordTx(manager, {
+        action: AuditAction.PROJECT_PURGED,
+        actor: actor ? this.actorOf(actor) : null,
+        targetType: 'Project',
+        targetId: project.id,
+        targetLabel: project.name,
+      });
+    });
     return true;
   }
 
