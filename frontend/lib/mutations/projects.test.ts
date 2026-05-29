@@ -1,15 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { waitFor, act } from '@testing-library/react';
-import { useUpdateProjectStatus } from './projects';
+import { useUpdateProjectStatus, useRemoveMaterial } from './projects';
 import { projectsKeys } from '../queries/projects';
 import { renderHookWithQueryClient } from '../../test/test-utils';
 import type { Project } from '../graphql/schemas';
 
 vi.mock('../actions/project.actions', () => ({
   updateProjectStatus: vi.fn(),
+  removeMaterial: vi.fn(),
 }));
 
-import { updateProjectStatus } from '../actions/project.actions';
+import { updateProjectStatus, removeMaterial } from '../actions/project.actions';
 
 const baseProject: Project = {
   id: 'p-1',
@@ -71,5 +72,56 @@ describe('useUpdateProjectStatus optimistic lifecycle', () => {
     });
     const cached = client.getQueryData<Project>(projectsKeys.detail('p-1'));
     expect(cached?.status).toBe('PLANNING');
+  });
+});
+
+describe('useRemoveMaterial optimistic lifecycle (shared helper, array patch)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const projectWithMaterials: Project = {
+    ...baseProject,
+    materials: [
+      { id: 'm-1', name: 'Cement', quantity: 10, unit: 'bags', status: 'ORDERED' },
+      { id: 'm-2', name: 'Rebar', quantity: 5, unit: 'tons', status: 'ON_SITE' },
+    ],
+  };
+
+  it('removes the material optimistically, keeps it gone after success', async () => {
+    vi.mocked(removeMaterial).mockResolvedValue({ ok: true, data: { id: 'm-1' } } as never);
+
+    const { result, client } = renderHookWithQueryClient(() =>
+      useRemoveMaterial({ projectId: 'p-1' }),
+    );
+    client.setQueryData(projectsKeys.detail('p-1'), projectWithMaterials);
+
+    await act(async () => {
+      result.current.mutate('m-1');
+    });
+
+    await waitFor(() => {
+      const cached = client.getQueryData<Project>(projectsKeys.detail('p-1'));
+      expect(cached?.materials?.map((m) => m.id)).toEqual(['m-2']);
+    });
+  });
+
+  it('rolls back the materials array when the Server Action rejects', async () => {
+    vi.mocked(removeMaterial).mockResolvedValue({ ok: false, error: 'Forbidden' } as never);
+
+    const { result, client } = renderHookWithQueryClient(() =>
+      useRemoveMaterial({ projectId: 'p-1' }),
+    );
+    client.setQueryData(projectsKeys.detail('p-1'), projectWithMaterials);
+
+    await act(async () => {
+      result.current.mutate('m-1');
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+    const cached = client.getQueryData<Project>(projectsKeys.detail('p-1'));
+    expect(cached?.materials?.map((m) => m.id)).toEqual(['m-1', 'm-2']);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { projectsKeys } from '../queries/projects';
+import { useOptimisticDetailMutation } from './optimistic';
 import {
   createProject,
   createProjectWithMaterials,
@@ -72,37 +73,24 @@ export function useRemoveProject() {
   });
 }
 
+// Patches the project's own `status`; also invalidates list views (which
+// show status) on settle. detailKey derives from input.id.
 export function useUpdateProjectStatus() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: UpdateProjectStatusInput) => unwrap(updateProjectStatus(input)),
-    onMutate: async (input) => {
-      const detailKey = projectsKeys.detail(input.id);
-      await queryClient.cancelQueries({ queryKey: detailKey });
-      const prevDetail = queryClient.getQueryData<Project>(detailKey);
-      queryClient.setQueryData<Project>(detailKey, (old) =>
-        old ? { ...old, status: input.status } : old,
-      );
-      return { prevDetail, detailKey };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prevDetail) queryClient.setQueryData(ctx.detailKey, ctx.prevDetail);
-    },
-    onSettled: (_data, _err, vars) => {
-      queryClient.invalidateQueries({ queryKey: projectsKeys.detail(vars.id) });
-      queryClient.invalidateQueries({ queryKey: [...projectsKeys.all, 'list'] });
-    },
+  return useOptimisticDetailMutation<UpdateProjectStatusInput, { id: string; status: string }, Project>({
+    mutationFn: (input) => unwrap(updateProjectStatus(input)),
+    detailKey: (input) => projectsKeys.detail(input.id),
+    patch: (old, input) => ({ ...old, status: input.status }),
+    extraInvalidateKeys: () => [[...projectsKeys.all, 'list']],
   });
 }
 
+// The four material mutations all patch the project detail's `materials`
+// array and close over a fixed projectId for the detail key.
 export function useAddMaterial(opts: { projectId: string }) {
-  const queryClient = useQueryClient();
-  const detailKey = projectsKeys.detail(opts.projectId);
-  return useMutation({
-    mutationFn: (input: AddMaterialWithProjectInput) => unwrap(addMaterial(input)),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: detailKey });
-      const prev = queryClient.getQueryData<Project>(detailKey);
+  return useOptimisticDetailMutation<AddMaterialWithProjectInput, unknown, Project>({
+    mutationFn: (input) => unwrap(addMaterial(input)),
+    detailKey: () => projectsKeys.detail(opts.projectId),
+    patch: (old, input) => {
       const optimisticMaterial: Material = {
         id: `temp-${Date.now()}`,
         name: input.name,
@@ -110,95 +98,44 @@ export function useAddMaterial(opts: { projectId: string }) {
         unit: input.unit,
         status: 'ORDERED',
       };
-      queryClient.setQueryData<Project>(detailKey, (old) =>
-        old ? { ...old, materials: [...(old.materials ?? []), optimisticMaterial] } : old,
-      );
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: detailKey });
+      return { ...old, materials: [...(old.materials ?? []), optimisticMaterial] };
     },
   });
 }
 
 export function useUpdateMaterialStatus(opts: { projectId: string }) {
-  const queryClient = useQueryClient();
-  const detailKey = projectsKeys.detail(opts.projectId);
-  return useMutation({
-    mutationFn: (input: UpdateMaterialStatusInput) => unwrap(updateMaterialStatus(input)),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: detailKey });
-      const prev = queryClient.getQueryData<Project>(detailKey);
-      queryClient.setQueryData<Project>(detailKey, (old) =>
-        old ? {
-          ...old,
-          materials: old.materials?.map((m) =>
-            m.id === input.id ? { ...m, status: input.status } : m,
-          ),
-        } : old,
-      );
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: detailKey });
-    },
+  return useOptimisticDetailMutation<UpdateMaterialStatusInput, unknown, Project>({
+    mutationFn: (input) => unwrap(updateMaterialStatus(input)),
+    detailKey: () => projectsKeys.detail(opts.projectId),
+    patch: (old, input) => ({
+      ...old,
+      materials: old.materials?.map((m) =>
+        m.id === input.id ? { ...m, status: input.status } : m,
+      ),
+    }),
   });
 }
 
 export function useRemoveMaterial(opts: { projectId: string }) {
-  const queryClient = useQueryClient();
-  const detailKey = projectsKeys.detail(opts.projectId);
-  return useMutation({
-    mutationFn: (id: string) => unwrap(removeMaterial(id)),
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: detailKey });
-      const prev = queryClient.getQueryData<Project>(detailKey);
-      queryClient.setQueryData<Project>(detailKey, (old) =>
-        old ? {
-          ...old,
-          materials: old.materials?.filter((m) => m.id !== id),
-        } : old,
-      );
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: detailKey });
-    },
+  return useOptimisticDetailMutation<string, unknown, Project>({
+    mutationFn: (id) => unwrap(removeMaterial(id)),
+    detailKey: () => projectsKeys.detail(opts.projectId),
+    patch: (old, id) => ({
+      ...old,
+      materials: old.materials?.filter((m) => m.id !== id),
+    }),
   });
 }
 
 export function useUpdateMaterialQuantity(opts: { projectId: string }) {
-  const queryClient = useQueryClient();
-  const detailKey = projectsKeys.detail(opts.projectId);
-  return useMutation({
-    mutationFn: (input: UpdateMaterialQuantityWithIdInput) => unwrap(updateMaterialQuantity(input)),
-    onMutate: async (input) => {
-      await queryClient.cancelQueries({ queryKey: detailKey });
-      const prev = queryClient.getQueryData<Project>(detailKey);
-      queryClient.setQueryData<Project>(detailKey, (old) =>
-        old ? {
-          ...old,
-          materials: old.materials?.map((m) =>
-            m.id === input.id ? { ...m, quantity: input.quantity } : m,
-          ),
-        } : old,
-      );
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: detailKey });
-    },
+  return useOptimisticDetailMutation<UpdateMaterialQuantityWithIdInput, unknown, Project>({
+    mutationFn: (input) => unwrap(updateMaterialQuantity(input)),
+    detailKey: () => projectsKeys.detail(opts.projectId),
+    patch: (old, input) => ({
+      ...old,
+      materials: old.materials?.map((m) =>
+        m.id === input.id ? { ...m, quantity: input.quantity } : m,
+      ),
+    }),
   });
 }
