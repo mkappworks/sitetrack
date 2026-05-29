@@ -17,6 +17,7 @@ const navItems: NavItem[] = [
   { href: '/equipments', label: 'Equipment', icon: '🛠' },
   { href: '/admin', label: 'Admin', icon: '⚙', adminOnly: true },
   { href: '/admin/trash', label: 'Trash', icon: '🗑', adminOnly: true },
+  { href: '/settings', label: 'Settings', icon: '👤' },
 ];
 
 interface Props {

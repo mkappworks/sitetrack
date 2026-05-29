@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
@@ -104,7 +105,8 @@ export function UsersListClient({ page, pageSize, search }: Props) {
                 <th className="text-left py-3 pr-4 font-medium text-gray-500">Name</th>
                 <th className="text-left py-3 pr-4 font-medium text-gray-500">Email</th>
                 <th className="text-left py-3 pr-4 font-medium text-gray-500">Role</th>
-                <th className="text-left py-3 font-medium text-gray-500">Joined</th>
+                <th className="text-left py-3 pr-4 font-medium text-gray-500">Joined</th>
+                <th className="text-right py-3 font-medium text-gray-500">Sessions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -121,8 +123,16 @@ export function UsersListClient({ page, pageSize, search }: Props) {
                       {user.role}
                     </span>
                   </td>
-                  <td className="py-3 text-gray-400">
+                  <td className="py-3 pr-4 text-gray-400">
                     {new Date(user.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="py-3 text-right">
+                    <Link
+                      href={`/admin/users/${user.id}`}
+                      className="text-xs text-blue-600 hover:text-blue-700"
+                    >
+                      Manage →
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -170,7 +180,8 @@ function UsersTableSkeleton({ rows }: { rows: number }) {
             <th className="text-left py-3 pr-4 font-medium text-gray-500">Name</th>
             <th className="text-left py-3 pr-4 font-medium text-gray-500">Email</th>
             <th className="text-left py-3 pr-4 font-medium text-gray-500">Role</th>
-            <th className="text-left py-3 font-medium text-gray-500">Joined</th>
+            <th className="text-left py-3 pr-4 font-medium text-gray-500">Joined</th>
+            <th className="text-right py-3 font-medium text-gray-500">Sessions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -179,7 +190,8 @@ function UsersTableSkeleton({ rows }: { rows: number }) {
               <td className="py-3 pr-4"><span className="block h-4 w-32 rounded bg-gray-100 animate-pulse" /></td>
               <td className="py-3 pr-4"><span className="block h-4 w-48 rounded bg-gray-100 animate-pulse" /></td>
               <td className="py-3 pr-4"><span className="block h-5 w-16 rounded-md bg-gray-100 animate-pulse" /></td>
-              <td className="py-3"><span className="block h-4 w-24 rounded bg-gray-100 animate-pulse" /></td>
+              <td className="py-3 pr-4"><span className="block h-4 w-24 rounded bg-gray-100 animate-pulse" /></td>
+              <td className="py-3"><span className="block h-4 w-16 rounded bg-gray-100 animate-pulse ml-auto" /></td>
             </tr>
           ))}
         </tbody>

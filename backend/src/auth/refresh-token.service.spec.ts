@@ -5,6 +5,22 @@ import { UnauthorizedException } from '@nestjs/common';
 import { RefreshTokenService } from './refresh-token.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 
+// Matches a row against a typeorm-style `where` clause. Understands the
+// FindOperators the service actually uses: IsNull() and MoreThan(date).
+function rowMatches(row: any, where: Record<string, any>): boolean {
+  return Object.entries(where).every(([k, v]) => {
+    if (v && typeof v === 'object' && (v as any).constructor?.name === 'FindOperator') {
+      const op = v as any;
+      // typeorm FindOperator exposes `_type` ('isNull' | 'moreThan' | ...)
+      // and `_value`.
+      if (op._type === 'isNull') return row[k] === null;
+      if (op._type === 'moreThan') return row[k] > op._value;
+      throw new Error(`fake repo: unsupported FindOperator ${op._type}`);
+    }
+    return row[k] === v;
+  });
+}
+
 // In-memory fake repo. Mirrors only the shape the service uses.
 function makeFakeRepo() {
   const rows: RefreshToken[] = [];
@@ -23,30 +39,16 @@ function makeFakeRepo() {
       else rows.push(entity);
       return entity;
     }),
-    findOne: jest.fn(async (opts: { where: Partial<RefreshToken> }) =>
-      rows.find((r) =>
-        Object.entries(opts.where).every(
-          ([k, v]) => (r as any)[k] === v,
-        ),
-      ) ?? null,
+    findOne: jest.fn(async (opts: { where: Record<string, any> }) =>
+      rows.find((r) => rowMatches(r, opts.where)) ?? null,
+    ),
+    find: jest.fn(async (opts: { where: Record<string, any> }) =>
+      rows.filter((r) => rowMatches(r, opts.where)),
     ),
     update: jest.fn(async (where: any, patch: Partial<RefreshToken>) => {
       let count = 0;
       for (const row of rows) {
-        const matches = Object.entries(where).every(([k, v]) => {
-          // typeorm IsNull() returns a FindOperator instance. The service
-          // only ever uses `IsNull()` (for revokedAt: IsNull()); detect any
-          // FindOperator-shaped value and treat it as "column is null".
-          if (
-            v &&
-            typeof v === 'object' &&
-            (v as any).constructor?.name === 'FindOperator'
-          ) {
-            return (row as any)[k] === null;
-          }
-          return (row as any)[k] === v;
-        });
-        if (matches) {
+        if (rowMatches(row, where)) {
           Object.assign(row, patch);
           count++;
         }
@@ -85,8 +87,9 @@ describe('RefreshTokenService', () => {
     });
 
     it('starts a new family whose id is the token id', async () => {
-      await service.issueForLogin('user-1');
+      const issued = await service.issueForLogin('user-1');
       expect(repo.rows[0].familyId).toBe(repo.rows[0].id);
+      expect(issued.familyId).toBe(repo.rows[0].id);
     });
 
     it('sets an expiry in the future', async () => {
@@ -179,6 +182,50 @@ describe('RefreshTokenService', () => {
       const user2Rows = repo.rows.filter((r) => r.userId === 'user-2');
       expect(user1Rows.every((r) => r.revokedAt !== null)).toBe(true);
       expect(user2Rows.every((r) => r.revokedAt === null)).toBe(true);
+    });
+  });
+
+  describe('listActiveSessions', () => {
+    it('returns one live token per device and excludes revoked/expired', async () => {
+      const a = await service.issueForLogin('user-1'); // device A
+      await service.issueForLogin('user-1'); // device B
+      // Rotate device A — predecessor revoked, successor live → still ONE
+      // live token for that family.
+      await service.rotate(a.rawToken);
+      // A third device, then revoke it.
+      const c = await service.issueForLogin('user-1');
+      await service.revokeSessionForUser('user-1', c.familyId);
+
+      const sessions = await service.listActiveSessions('user-1');
+      // Device A (rotated, 1 live) + device B (1 live) = 2. Device C revoked.
+      expect(sessions).toHaveLength(2);
+      expect(sessions.every((s) => s.revokedAt === null)).toBe(true);
+    });
+
+    it('does not return another user\'s sessions', async () => {
+      await service.issueForLogin('user-1');
+      await service.issueForLogin('user-2');
+      const sessions = await service.listActiveSessions('user-1');
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].userId).toBe('user-1');
+    });
+  });
+
+  describe('revokeSessionForUser', () => {
+    it('revokes the family when it belongs to the user', async () => {
+      const s = await service.issueForLogin('user-1');
+      const ok = await service.revokeSessionForUser('user-1', s.familyId);
+      expect(ok).toBe(true);
+      const live = await service.listActiveSessions('user-1');
+      expect(live).toHaveLength(0);
+    });
+
+    it('refuses to revoke a session owned by a different user', async () => {
+      const s = await service.issueForLogin('user-1');
+      const ok = await service.revokeSessionForUser('user-2', s.familyId);
+      expect(ok).toBe(false);
+      // user-1's session is untouched.
+      expect(repo.rows[0].revokedAt).toBeNull();
     });
   });
 });

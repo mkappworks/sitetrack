@@ -144,9 +144,59 @@ export const LOGOUT_MUTATION = `
   }
 `;
 
+const SESSION_FIELDS = `
+  id
+  userAgent
+  ipAddress
+  createdAt
+  expiresAt
+  current
+`;
+
+export const MY_SESSIONS_QUERY = `
+  query MySessions {
+    mySessions { ${SESSION_FIELDS} }
+  }
+`;
+
+export const USER_SESSIONS_QUERY = `
+  query UserSessions($userId: ID!) {
+    userSessions(userId: $userId) { ${SESSION_FIELDS} }
+  }
+`;
+
+export const REVOKE_SESSION_MUTATION = `
+  mutation RevokeSession($id: ID!) {
+    revokeSession(id: $id)
+  }
+`;
+
+export const REVOKE_USER_SESSION_MUTATION = `
+  mutation RevokeUserSession($userId: ID!, $sessionId: ID!) {
+    revokeUserSession(userId: $userId, sessionId: $sessionId)
+  }
+`;
+
+export const REVOKE_ALL_USER_SESSIONS_MUTATION = `
+  mutation RevokeAllUserSessions($userId: ID!) {
+    revokeAllUserSessions(userId: $userId)
+  }
+`;
+
 export const ME_QUERY = `
   query Me {
     me {
+      id
+      name
+      email
+      role
+    }
+  }
+`;
+
+export const USER_BY_ID_QUERY = `
+  query User($id: ID!) {
+    user(id: $id) {
       id
       name
       email

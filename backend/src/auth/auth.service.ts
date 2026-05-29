@@ -42,13 +42,15 @@ export class AuthService {
   }
 
   async refresh(rawRefreshToken: string, ctx: RequestContext = {}): Promise<AuthPayload> {
-    const { userId, next } = await this.refreshTokens.rotate(rawRefreshToken, ctx);
+    const { userId, familyId, next } = await this.refreshTokens.rotate(rawRefreshToken, ctx);
     const user = await this.usersService.findOne(userId);
     if (!user) {
       // User deleted while session was active — refuse to mint new access.
       throw new UnauthorizedException("User no longer exists");
     }
-    const accessToken = this.generateAccessToken(user);
+    // familyId is preserved across rotation, so the new access token keeps
+    // pointing at the same session.
+    const accessToken = this.generateAccessToken(user, familyId);
     return {
       accessToken,
       refreshToken: next.rawToken,
@@ -73,8 +75,10 @@ export class AuthService {
   // }
 
   private async issueTokens(user: User, ctx: RequestContext): Promise<AuthPayload> {
-    const accessToken = this.generateAccessToken(user);
-    const { rawToken } = await this.refreshTokens.issueForLogin(user.id, ctx);
+    // Issue the refresh token first so the access token can carry its
+    // familyId as the `sid` claim (links access token → session/device).
+    const { rawToken, familyId } = await this.refreshTokens.issueForLogin(user.id, ctx);
+    const accessToken = this.generateAccessToken(user, familyId);
     return {
       accessToken,
       refreshToken: rawToken,
@@ -83,11 +87,12 @@ export class AuthService {
     };
   }
 
-  private generateAccessToken(user: User): string {
+  private generateAccessToken(user: User, sid?: string): string {
     const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      sid,
     };
     return this.jwtService.sign(payload);
   }

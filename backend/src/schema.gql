@@ -142,6 +142,15 @@ type Mutation {
   removeUser(id: ID!): Boolean!
   restoreEquipment(id: ID!): Equipment!
   restoreProject(id: ID!): Project!
+
+  """Revoke ALL of a user's sessions (force logout) — Admin only"""
+  revokeAllUserSessions(userId: ID!): Boolean!
+
+  """Revoke one of your own sessions (logs out that device)"""
+  revokeSession(id: ID!): Boolean!
+
+  """Revoke a specific user session — Admin only"""
+  revokeUserSession(sessionId: ID!, userId: ID!): Boolean!
   updateEquipment(id: ID!, input: UpdateEquipmentInput!): Equipment!
   updateMaterial(id: ID!, input: UpdateMaterialInput!): Material!
   updateProject(id: ID!, input: UpdateProjectInput!): Project!
@@ -201,6 +210,9 @@ type Query {
 
   """The currently authenticated user"""
   me: User!
+
+  """Active login sessions for the current user"""
+  mySessions: [Session!]!
   project(id: ID!): Project!
   projectStatusCounts: [ProjectStatusCount!]!
   projects(limit: Int! = 20, offset: Int! = 0, search: String): ProjectPage!
@@ -208,12 +220,24 @@ type Query {
   """Get a specific user by ID — Admin only. Non-admins use `me` for self."""
   user(id: ID!): User!
 
+  """A user's active sessions — Admin only"""
+  userSessions(userId: ID!): [Session!]!
+
   """List all users (paginated + searchable) — Admin only"""
   users(limit: Int! = 20, offset: Int! = 0, search: String): UserPage!
 }
 
 input RefreshTokenInput {
   refreshToken: String!
+}
+
+type Session {
+  createdAt: DateTime!
+  current: Boolean!
+  expiresAt: DateTime!
+  id: ID!
+  ipAddress: String
+  userAgent: String
 }
 
 type Subscription {

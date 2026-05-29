@@ -9,6 +9,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { RefreshTokenService } from './refresh-token.service';
+import { SessionsResolver } from './sessions.resolver';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersModule } from '../users/users.module';
 
@@ -35,6 +36,7 @@ import { UsersModule } from '../users/users.module';
     JwtAuthGuard,
     RolesGuard,
     RefreshTokenService,
+    SessionsResolver,
   ],
   exports: [JwtAuthGuard, RolesGuard, RefreshTokenService],
 })

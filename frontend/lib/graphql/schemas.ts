@@ -115,6 +115,27 @@ export const ProjectStatusCountsResponseSchema = z.object({
   projectStatusCounts: z.array(ProjectStatusCountSchema),
 });
 
+export const SessionSchema = z.object({
+  id: z.string(),
+  userAgent: z.string().nullable().optional(),
+  ipAddress: z.string().nullable().optional(),
+  createdAt: z.string(),
+  expiresAt: z.string(),
+  current: z.boolean(),
+});
+
+export const MySessionsResponseSchema = z.object({
+  mySessions: z.array(SessionSchema),
+});
+
+export const UserSessionsResponseSchema = z.object({
+  userSessions: z.array(SessionSchema),
+});
+
+export const UserByIdResponseSchema = z.object({
+  user: UserSchema,
+});
+
 export type Project = z.infer<typeof ProjectSchema>;
 export type Manager = z.infer<typeof ManagerSchema>;
 export type Material = z.infer<typeof MaterialSchema>;
@@ -124,3 +145,4 @@ export type ProjectsResponse = z.infer<typeof ProjectsResponseSchema>;
 export type UsersResponse = z.infer<typeof UsersResponseSchema>;
 export type EquipmentsResponse = z.infer<typeof EquipmentsResponseSchema>;
 export type ProjectStatusCount = z.infer<typeof ProjectStatusCountSchema>;
+export type Session = z.infer<typeof SessionSchema>;

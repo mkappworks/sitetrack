@@ -4,7 +4,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { Repository, IsNull, MoreThan } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { createHash, randomBytes } from 'crypto';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -12,6 +12,7 @@ import { RefreshToken } from './entities/refresh-token.entity';
 export interface IssuedRefreshToken {
   rawToken: string;
   expiresAt: Date;
+  familyId: string;
 }
 
 interface IssueContext {
@@ -55,7 +56,7 @@ export class RefreshTokenService {
     // familyId = id for the chain head; second save updates only this column.
     saved.familyId = saved.id;
     await this.repo.save(saved);
-    return { rawToken: raw, expiresAt: saved.expiresAt };
+    return { rawToken: raw, expiresAt: saved.expiresAt, familyId: saved.familyId };
   }
 
   // Rotate a presented refresh token. Returns the next raw token and its
@@ -67,7 +68,7 @@ export class RefreshTokenService {
   async rotate(
     rawToken: string,
     ctx: IssueContext = {},
-  ): Promise<{ userId: string; next: IssuedRefreshToken }> {
+  ): Promise<{ userId: string; familyId: string; next: IssuedRefreshToken }> {
     const tokenHash = this.hash(rawToken);
     const existing = await this.repo.findOne({ where: { tokenHash } });
 
@@ -111,7 +112,8 @@ export class RefreshTokenService {
 
     return {
       userId: existing.userId,
-      next: { rawToken: raw, expiresAt: saved.expiresAt },
+      familyId: existing.familyId,
+      next: { rawToken: raw, expiresAt: saved.expiresAt, familyId: saved.familyId },
     };
   }
 
@@ -133,14 +135,34 @@ export class RefreshTokenService {
     );
   }
 
-  // Revoke every live token for a user — used when an admin invalidates
-  // a user (future: password change, suspend account). Exposed for the
-  // service surface; not wired to a mutation yet.
+  // Revoke every live token for a user. Used by the admin "force logout"
+  // action and when an admin suspends an account.
   async revokeAllForUser(userId: string): Promise<void> {
     await this.repo.update(
       { userId, revokedAt: IsNull() },
       { revokedAt: new Date() },
     );
+  }
+
+  // One live token per family (rotation revokes predecessors), so the set of
+  // live, unexpired tokens for a user IS the set of active sessions/devices.
+  async listActiveSessions(userId: string): Promise<RefreshToken[]> {
+    return this.repo.find({
+      where: { userId, revokedAt: IsNull(), expiresAt: MoreThan(new Date()) },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  // Revoke a session (whole family) but ONLY if it belongs to the given
+  // user — the ownership guard that lets self-service revoke run safely.
+  // Returns false if no live session with that familyId exists for the user.
+  async revokeSessionForUser(userId: string, familyId: string): Promise<boolean> {
+    const live = await this.repo.findOne({
+      where: { userId, familyId, revokedAt: IsNull() },
+    });
+    if (!live) return false;
+    await this.revokeFamily(familyId);
+    return true;
   }
 
   // 256 bits of entropy → 64 hex chars. crypto.randomBytes is CSPRNG.
