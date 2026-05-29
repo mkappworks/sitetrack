@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken, getDataSourceToken } from "@nestjs/typeorm";
 import { DataSource, EntityManager, type ObjectLiteral, Repository } from "typeorm";
-import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { ProjectsService } from "./projects.service";
 import { Project, ProjectStatus } from "./entities/project.entity";
 import { Material } from "../materials/entities/material.entity";
@@ -19,6 +19,7 @@ const createMockRepository = <
   save: jest.fn(),
   remove: jest.fn(),
   softRemove: jest.fn(),
+  delete: jest.fn(),
   createQueryBuilder: jest.fn(),
 });
 
@@ -381,6 +382,49 @@ describe("ProjectsService", () => {
       expect(txnManager.save).toHaveBeenCalledTimes(2);
       expect(projectsRepo.save).not.toHaveBeenCalled();
       expect(dataSource.transaction).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("purge", () => {
+    it("hard-deletes a soft-deleted project", async () => {
+      projectsRepo.findOne!.mockResolvedValue({
+        ...mockProject,
+        deletedAt: new Date(),
+      });
+      projectsRepo.delete!.mockResolvedValue({ affected: 1 });
+
+      const result = await projectService.purge("project-1");
+
+      expect(projectsRepo.findOne).toHaveBeenCalledWith({
+        where: { id: "project-1" },
+        withDeleted: true,
+      });
+      expect(projectsRepo.delete).toHaveBeenCalledWith("project-1");
+      expect(result).toBe(true);
+    });
+
+    it("throws NotFoundException when the project does not exist at all", async () => {
+      projectsRepo.findOne!.mockResolvedValue(null);
+
+      await expect(projectService.purge("missing")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(projectsRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it("throws BadRequestException when the project is active (not soft-deleted)", async () => {
+      // The two-step flow contract: must soft-delete before purging. This
+      // assertion prevents a future refactor from accidentally turning purge
+      // into a backdoor for skipping soft-delete entirely.
+      projectsRepo.findOne!.mockResolvedValue({
+        ...mockProject,
+        deletedAt: null,
+      });
+
+      await expect(projectService.purge("project-1")).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(projectsRepo.delete).not.toHaveBeenCalled();
     });
   });
 });

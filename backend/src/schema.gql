@@ -120,6 +120,12 @@ type Mutation {
 
   """Login with email + password"""
   login(input: LoginInput!): AuthPayload!
+
+  """Permanently delete a soft-deleted equipment — Admin only"""
+  purgeEquipment(id: ID!): Boolean!
+
+  """Permanently delete a soft-deleted project — Admin only"""
+  purgeProject(id: ID!): Boolean!
   removeEquipment(id: ID!): Boolean!
   removeMaterial(id: ID!): Boolean!
   removeProject(id: ID!): Boolean!

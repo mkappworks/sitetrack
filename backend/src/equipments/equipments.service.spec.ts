@@ -1,7 +1,7 @@
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { type ObjectLiteral, Repository } from "typeorm";
-import { NotFoundException, ForbiddenException } from "@nestjs/common";
+import { NotFoundException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { EquipmentsService } from "./equipments.service";
 import { Equipment } from "./entities/equipment.entity";
 import { User, UserRole } from "../users/entities/user.entity";
@@ -18,6 +18,7 @@ const createMockRepository = <
   save: jest.fn(),
   remove: jest.fn(),
   softRemove: jest.fn(),
+  delete: jest.fn(),
   createQueryBuilder: jest.fn(),
 });
 
@@ -312,6 +313,46 @@ describe("EquipmentsService", () => {
         "LOWER(equipment.name) LIKE LOWER(:search)",
         { search: "%Crane%" },
       );
+    });
+  });
+
+  describe("purge", () => {
+    it("hard-deletes soft-deleted equipment", async () => {
+      equipmentRepo.findOne!.mockResolvedValue({
+        ...mockEquipment,
+        deletedAt: new Date(),
+      });
+      equipmentRepo.delete!.mockResolvedValue({ affected: 1 });
+
+      const result = await equipmentsService.purge("equipment-1");
+
+      expect(equipmentRepo.findOne).toHaveBeenCalledWith({
+        where: { id: "equipment-1" },
+        withDeleted: true,
+      });
+      expect(equipmentRepo.delete).toHaveBeenCalledWith("equipment-1");
+      expect(result).toBe(true);
+    });
+
+    it("throws NotFoundException when the equipment does not exist", async () => {
+      equipmentRepo.findOne!.mockResolvedValue(null);
+
+      await expect(equipmentsService.purge("missing")).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(equipmentRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it("throws BadRequestException when the equipment is still active", async () => {
+      equipmentRepo.findOne!.mockResolvedValue({
+        ...mockEquipment,
+        deletedAt: null,
+      });
+
+      await expect(equipmentsService.purge("equipment-1")).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(equipmentRepo.delete).not.toHaveBeenCalled();
     });
   });
 });

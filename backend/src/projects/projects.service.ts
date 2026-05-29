@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { DataSource, IsNull, Not, Repository } from 'typeorm';
 import { Project, ProjectStatus } from './entities/project.entity';
@@ -155,6 +155,23 @@ export class ProjectsService {
     });
     if (!project) throw new NotFoundException(`Project ${id} not found after restore`);
     return project;
+  }
+
+  async purge(id: string): Promise<boolean> {
+    // Refuse if the row is active — purge is for trashed rows only.
+    // The two-step flow (soft delete first, then purge) prevents accidental
+    // hard-deletes via this endpoint. Materials cascade via the FK
+    // onDelete: 'CASCADE' on the @ManyToOne side, including soft-deleted ones.
+    const project = await this.projectsRepo.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+    if (!project) throw new NotFoundException(`Project ${id} not found`);
+    if (!project.deletedAt) {
+      throw new BadRequestException('Cannot purge an active project; soft-delete it first');
+    }
+    await this.projectsRepo.delete(id);
+    return true;
   }
 
   private assertCanModify(project: Project, user: User): void {

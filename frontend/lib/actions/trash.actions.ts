@@ -6,6 +6,8 @@ import { gqlClient } from '../graphql/client';
 import {
   RESTORE_PROJECT_MUTATION,
   RESTORE_EQUIPMENT_MUTATION,
+  PURGE_PROJECT_MUTATION,
+  PURGE_EQUIPMENT_MUTATION,
 } from '../graphql/queries';
 import type { ActionResult } from './project.actions';
 
@@ -46,5 +48,37 @@ export async function restoreEquipment(id: string): Promise<ActionResult<{ id: s
     return { ok: true, data: data.restoreEquipment };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Failed to restore equipment' };
+  }
+}
+
+export async function purgeProject(id: string): Promise<ActionResult<{ id: string }>> {
+  const parsed = IdSchema.safeParse({ id });
+  if (!parsed.success) return { ok: false, error: 'Invalid project id' };
+
+  const client = await gqlClient();
+  try {
+    await client.request<{ purgeProject: boolean }>(PURGE_PROJECT_MUTATION, {
+      id: parsed.data.id,
+    });
+    revalidatePath('/admin/trash');
+    return { ok: true, data: { id: parsed.data.id } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to purge project' };
+  }
+}
+
+export async function purgeEquipment(id: string): Promise<ActionResult<{ id: string }>> {
+  const parsed = IdSchema.safeParse({ id });
+  if (!parsed.success) return { ok: false, error: 'Invalid equipment id' };
+
+  const client = await gqlClient();
+  try {
+    await client.request<{ purgeEquipment: boolean }>(PURGE_EQUIPMENT_MUTATION, {
+      id: parsed.data.id,
+    });
+    revalidatePath('/admin/trash');
+    return { ok: true, data: { id: parsed.data.id } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : 'Failed to purge equipment' };
   }
 }

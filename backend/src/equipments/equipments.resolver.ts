@@ -81,4 +81,11 @@ export class EquipmentsResolver {
   restoreEquipment(@Args("id", { type: () => ID }) id: string): Promise<Equipment> {
     return this.equipmentsService.restore(id);
   }
+
+  @Mutation(() => Boolean, { description: "Permanently delete a soft-deleted equipment — Admin only" })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN)
+  purgeEquipment(@Args("id", { type: () => ID }) id: string): Promise<boolean> {
+    return this.equipmentsService.purge(id);
+  }
 }

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -114,6 +115,19 @@ export class EquipmentsService {
     });
     if (!equipment) throw new NotFoundException(`Equipment ${id} not found after restore`);
     return equipment;
+  }
+
+  async purge(id: string): Promise<boolean> {
+    const equipment = await this.equipmentRepo.findOne({
+      where: { id },
+      withDeleted: true,
+    });
+    if (!equipment) throw new NotFoundException(`Equipment ${id} not found`);
+    if (!equipment.deletedAt) {
+      throw new BadRequestException("Cannot purge active equipment; soft-delete it first");
+    }
+    await this.equipmentRepo.delete(id);
+    return true;
   }
 
   private assertCanModify(equipment: Equipment, user: User): void {

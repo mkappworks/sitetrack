@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -9,7 +10,28 @@ import {
 import {
   useRestoreProject,
   useRestoreEquipment,
+  usePurgeProject,
+  usePurgeEquipment,
 } from '../../../lib/mutations/trash';
+import { ConfirmDeleteModal } from '../../../components/ConfirmDeleteModal';
+
+type ProjectRowData = {
+  id: string;
+  name: string;
+  status: string;
+  deletedAt?: string | null;
+  updatedAt: string;
+  manager?: { name: string } | null;
+};
+
+type EquipmentRowData = {
+  id: string;
+  name: string;
+  description?: string | null;
+  deletedAt?: string | null;
+  updatedAt: string;
+  manager?: { name: string } | null;
+};
 
 export function TrashClient() {
   const { data: session } = useSession();
@@ -17,6 +39,13 @@ export function TrashClient() {
 
   const projectsQ = useQuery(deletedProjectsQueryOptions({ token }));
   const equipmentsQ = useQuery(deletedEquipmentsQueryOptions({ token }));
+
+  // Lifted modal state so the modal lives once at this level. Only one
+  // purge confirm is open at a time across both sections.
+  const [purgingProject, setPurgingProject] = useState<ProjectRowData | null>(null);
+  const [purgingEquipment, setPurgingEquipment] = useState<EquipmentRowData | null>(null);
+  const purgeProjectMutation = usePurgeProject();
+  const purgeEquipmentMutation = usePurgeEquipment();
 
   return (
     <div className="space-y-6">
@@ -28,7 +57,11 @@ export function TrashClient() {
         items={projectsQ.data ?? []}
         emptyCopy="No deleted projects."
         renderRow={(row) => (
-          <ProjectRow key={row.id} row={row} />
+          <ProjectRow
+            key={row.id}
+            row={row}
+            onPurgeClick={() => setPurgingProject(row)}
+          />
         )}
       />
       <Section
@@ -39,8 +72,65 @@ export function TrashClient() {
         items={equipmentsQ.data ?? []}
         emptyCopy="No deleted equipment."
         renderRow={(row) => (
-          <EquipmentRow key={row.id} row={row} />
+          <EquipmentRow
+            key={row.id}
+            row={row}
+            onPurgeClick={() => setPurgingEquipment(row)}
+          />
         )}
+      />
+
+      <ConfirmDeleteModal
+        open={!!purgingProject}
+        title="Permanently delete project?"
+        description={
+          purgingProject && (
+            <>
+              <strong className="text-gray-900">{purgingProject.name}</strong>
+              {' '}and all of its materials will be permanently deleted from
+              the database. This cannot be undone — even Restore won't bring
+              it back.
+            </>
+          )
+        }
+        confirmLabel="Permanently delete"
+        isDeleting={purgeProjectMutation.isPending}
+        error={purgeProjectMutation.isError ? purgeProjectMutation.error.message : null}
+        onCancel={() => {
+          setPurgingProject(null);
+          purgeProjectMutation.reset();
+        }}
+        onConfirm={async () => {
+          if (!purgingProject) return;
+          await purgeProjectMutation.mutateAsync(purgingProject.id);
+          setPurgingProject(null);
+        }}
+      />
+
+      <ConfirmDeleteModal
+        open={!!purgingEquipment}
+        title="Permanently delete equipment?"
+        description={
+          purgingEquipment && (
+            <>
+              <strong className="text-gray-900">{purgingEquipment.name}</strong>
+              {' '}will be permanently deleted from the database. This cannot
+              be undone.
+            </>
+          )
+        }
+        confirmLabel="Permanently delete"
+        isDeleting={purgeEquipmentMutation.isPending}
+        error={purgeEquipmentMutation.isError ? purgeEquipmentMutation.error.message : null}
+        onCancel={() => {
+          setPurgingEquipment(null);
+          purgeEquipmentMutation.reset();
+        }}
+        onConfirm={async () => {
+          if (!purgingEquipment) return;
+          await purgeEquipmentMutation.mutateAsync(purgingEquipment.id);
+          setPurgingEquipment(null);
+        }}
       />
     </div>
   );
@@ -87,15 +177,10 @@ function Section<T>({
 
 function ProjectRow({
   row,
+  onPurgeClick,
 }: {
-  row: {
-    id: string;
-    name: string;
-    status: string;
-    deletedAt?: string | null;
-    updatedAt: string;
-    manager?: { name: string } | null;
-  };
+  row: ProjectRowData;
+  onPurgeClick: () => void;
 }) {
   const mutation = useRestoreProject();
   const when = row.deletedAt ?? row.updatedAt;
@@ -121,6 +206,12 @@ function ProjectRow({
         >
           {mutation.isPending ? 'Restoring…' : 'Restore'}
         </button>
+        <button
+          onClick={onPurgeClick}
+          className="text-xs text-red-600 hover:text-red-700"
+        >
+          Purge
+        </button>
       </div>
     </li>
   );
@@ -128,15 +219,10 @@ function ProjectRow({
 
 function EquipmentRow({
   row,
+  onPurgeClick,
 }: {
-  row: {
-    id: string;
-    name: string;
-    description?: string | null;
-    deletedAt?: string | null;
-    updatedAt: string;
-    manager?: { name: string } | null;
-  };
+  row: EquipmentRowData;
+  onPurgeClick: () => void;
 }) {
   const mutation = useRestoreEquipment();
   const when = row.deletedAt ?? row.updatedAt;
@@ -159,6 +245,12 @@ function EquipmentRow({
           className="btn-secondary text-xs disabled:opacity-40"
         >
           {mutation.isPending ? 'Restoring…' : 'Restore'}
+        </button>
+        <button
+          onClick={onPurgeClick}
+          className="text-xs text-red-600 hover:text-red-700"
+        >
+          Purge
         </button>
       </div>
     </li>

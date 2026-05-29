@@ -250,6 +250,18 @@ export const RESTORE_EQUIPMENT_MUTATION = `
   }
 `;
 
+export const PURGE_PROJECT_MUTATION = `
+  mutation PurgeProject($id: ID!) {
+    purgeProject(id: $id)
+  }
+`;
+
+export const PURGE_EQUIPMENT_MUTATION = `
+  mutation PurgeEquipment($id: ID!) {
+    purgeEquipment(id: $id)
+  }
+`;
+
 export const MANAGERS_QUERY = `
   query Managers {
     managers {
