@@ -28,7 +28,7 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - Repository injected via `@InjectRepository`. For transactions, also inject `DataSource` via `@InjectDataSource`.
 - Transactions: `dataSource.transaction(async (manager) => { ... })`. EVERY write inside the callback uses the passed-in `manager`, NOT `this.repo` — using the repo escapes the transaction and breaks rollback. The unit spec `projects.service.spec.ts` asserts `projectsRepo.save` was NEVER called to enforce this.
 - For partial updates, never `Object.assign(entity, input)`. `class-transformer` + `useDefineForClassFields` materializes optional DTO fields as own `undefined` properties, which would clobber unchanged columns. Iterate `Object.entries(input)` and skip `undefined`.
-- **When updating an FK column, clear the loaded relation object first** (`entity.manager = undefined`). If `findOne({ relations: { manager: true } })` loaded the relation, TypeORM's `save()` prefers the relation object's id over the explicit FK column — silently reverting your update. The fix landed in `1f11724` along with the `'' → null` action mapping for unassign semantics.
+- **When updating an FK column, clear the loaded relation object first** (`entity.manager = undefined`). If `findOne({ relations: { manager: true } })` loaded the relation, TypeORM's `save()` prefers the relation object's id over the explicit FK column — silently reverting your update. Same place we map `'' → null` for unassign semantics.
 - **Soft delete via `@DeleteDateColumn` + `softRemove`** (not `remove`). Default `find()` queries automatically exclude soft-removed rows. For `@OneToMany` children that should follow the parent into the trash, add `cascade: ['soft-remove']` on the relation. Resurrecting rows: `repo.restore(id)`. Mixing `remove()` and `softRemove()` across services is the #1 soft-delete bug.
 
 ### Aggregated stats query (don't aggregate client-side)
@@ -53,7 +53,7 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - **No grace window on rotation** — strict invalidation. Multi-tab races are mitigated frontend-side via an in-process Promise dedupe (see `lib/auth.ts:refreshOnce`). Multi-process / multi-server races would still surface as forced re-login; Redis-backed lock is the production fix when scaling out.
 
 ### Testing
-- Unit specs mock repositories + (when relevant) `DataSource`. Tests assert service contracts in isolation — they do NOT go through GraphQL routing or the `ValidationPipe`. That gap means resolver-level bugs (see the search/PaginationArgs incident, `c0812bf`) won't be caught by unit tests; consider an integration test against a real Postgres when wiring resolver-level args.
+- Unit specs mock repositories + (when relevant) `DataSource`. Tests assert service contracts in isolation — they do NOT go through GraphQL routing or the `ValidationPipe`. That gap means resolver-level bugs (e.g. the search/PaginationArgs incident) won't be caught by unit tests; consider an integration test against a real Postgres when wiring resolver-level args.
 - `test/projects.transaction.e2e-spec.ts` is the pattern for integration tests against real Postgres. Uses a separate `sitetrack_test` DB, `synchronize + dropSchema: true`. Covers things mocks can't (real ROLLBACK).
 - All loaders should have unit tests asserting batching + key-order contract.
 
@@ -82,7 +82,7 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 
 ### Forms
 - TanStack Form (`useForm`) with `validators: { onChange: zodSchema }`. The schema's input type MUST exactly match the form's `defaultValues` shape — TanStack Form v1's Standard Schema interop checks both at TypeScript level. For optional text fields, declare as required strings in the schema (allowing `''`) and strip empty → `undefined` in the Server Action before the wire.
-- Label inputs by wrapping `<input>` inside `<label>`. The sibling-`<label>` + no-`htmlFor` pattern looks fine visually but breaks screen readers AND `getByLabelText` queries. See `c307989` for examples.
+- Label inputs by wrapping `<input>` inside `<label>`. The sibling-`<label>` + no-`htmlFor` pattern looks fine visually but breaks screen readers AND `getByLabelText` queries.
 - `form.Subscribe` for whole-form derived state (`canSubmit`, `isSubmitting`) — avoids re-rendering every field on submit-button updates.
 - For dynamic arrays use `form.Field name="materials" mode="array"` with `pushValue` / `removeValue` handles; nested fields use the synthetic path `materials[${i}].name`.
 
@@ -130,8 +130,8 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 
 ## Conventions that don't fit elsewhere
 
-- Commits: atomic-in-intent (not minimal-diff). Bundle cross-cutting changes that belong to the same logical unit even if they span backend + frontend. Recent example: `f2bc568 feat(stack): add search to projects` covered backend service + resolver + schema + frontend query + queryOptions + page + ListClient — one feature, one commit.
-- Comments: default no. Explain non-obvious *WHY* (workaround, invariant, framework quirk). Don't narrate WHAT — code names already do that. `style(repo): trim narrative comments to non-obvious WHY only` is the policy in commit form.
+- Commits: atomic-in-intent (not minimal-diff). Bundle cross-cutting changes that belong to the same logical unit even if they span backend + frontend. Example: a single "add search to projects" commit covered backend service + resolver + schema + frontend query + queryOptions + page + ListClient — one feature, one commit.
+- Comments: default no. Explain non-obvious *WHY* (workaround, invariant, framework quirk). Don't narrate WHAT — code names already do that.
 - Seed data: `npm run seed` in backend. Guarded by `NODE_ENV=development` + sentinel-row idempotency. Don't echo passwords in logs.
 - Schema changes: `synchronize: true` in dev for fast iteration. Migrations for prod via `npm run migration:generate` / `migration:run`. Schema-altering decorators on entities; never raw SQL outside migrations.
 
@@ -148,22 +148,3 @@ These are deferred decisions, not oversights:
 - **Optimistic mutation pattern extraction**. Five consumers (`useUpdateProjectStatus`, `useAddMaterial`, `useUpdateMaterialStatus`, `useUpdateMaterialQuantity`, `useRemoveMaterial`) follow identical onMutate/onError/onSettled shapes. The threshold for extraction has been crossed; the friction is finding the right generic signature (`detailKey` + `patchFn` + `inverseFn`). Worth a small refactor commit when next mutation joins.
 - **Audit log** (who deleted what when). Important when delete becomes a more frequent action; orthogonal to the rest.
 - **Active-sessions UI.** `refresh_tokens` already records `userAgent` + `ipAddress` per login; surface as "your devices" + per-session revoke in `/admin` or `/settings`.
-
----
-
-## File-level pointers
-
-- Server Actions trust boundary: `frontend/lib/actions/*.actions.ts` — `parseInput` with the shared Zod schema.
-- The ValidationPipe trap: `backend/src/main.ts:33-34` + `backend/src/projects/projects.resolver.ts` shows the single-ArgsType resolution.
-- Hydration entry: `frontend/lib/get-query-client.ts` + `frontend/app/providers.tsx`.
-- Transaction contract: `backend/src/projects/projects.service.ts:createWithMaterials` + spec at `projects.service.spec.ts`.
-- E2E test pattern: `backend/test/projects.transaction.e2e-spec.ts`.
-- Optimistic mutation pattern: `frontend/lib/mutations/projects.ts:useUpdateProjectStatus` + test at `frontend/lib/mutations/projects.test.ts`.
-- Manager-edit relation-merge fix: `backend/src/projects/projects.service.ts:update` + same in `equipments.service.ts`. Commit `1f11724`.
-- Aggregated stats query: `backend/src/projects/projects.service.ts:statusCounts` + dto + dashboard consumer in `frontend/app/dashboard/page.tsx`. Commit `8f81df3`.
-- Soft delete + Trash + Purge: `@DeleteDateColumn` on entities + `softRemove`/`restore`/`purge` in services + `/admin/trash` page. Commits `6f3578a`, `1f11724`, `07dc4dd`, `4b34fd2`. Purge guards via `BadRequestException` if the row is active — refuses to purge anything that hasn't been soft-deleted first.
-- Reusable destructive modal: `frontend/components/ConfirmDeleteModal.tsx`. Commit `d54eec8`.
-- Error boundaries: `frontend/app/*/error.tsx` + shared `components/ErrorState.tsx`. Commit `5e8c0f0`.
-- Refresh-token rotation + reuse-detection: `backend/src/auth/refresh-token.service.ts` + spec at `refresh-token.service.spec.ts` (11 specs, covers issue / rotate / reuse / chain / revoke). Frontend integration: `frontend/lib/auth.ts:refreshOnce` (Promise dedupe) + `jwt` callback proactive refresh.
-- Trash bulk select: `frontend/app/admin/trash/TrashClient.tsx`. Section-scoped `Set<string>` state, contextual floating action bar, `Promise.all` over single-id mutations.
-- Security hardening: rate limit (login 5/15m, refresh 30/5m) via `backend/src/auth/guards/gql-throttler.guard.ts` + `@Throttle` on auth.resolver; GraphQL `depthLimit(8)` in `backend/src/app.module.ts`; generic createUser error to prevent enumeration in `frontend/lib/actions/user.actions.ts`.
