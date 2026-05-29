@@ -4,6 +4,8 @@
 
 type AuthPayload {
   accessToken: String!
+  accessTokenExpiresAt: String!
+  refreshToken: String!
   user: User!
 }
 
@@ -121,11 +123,17 @@ type Mutation {
   """Login with email + password"""
   login(input: LoginInput!): AuthPayload!
 
+  """Revoke a refresh token (logout)"""
+  logout(input: RefreshTokenInput!): Boolean!
+
   """Permanently delete a soft-deleted equipment — Admin only"""
   purgeEquipment(id: ID!): Boolean!
 
   """Permanently delete a soft-deleted project — Admin only"""
   purgeProject(id: ID!): Boolean!
+
+  """Exchange a refresh token for a new access + refresh token pair"""
+  refreshTokens(input: RefreshTokenInput!): AuthPayload!
   removeEquipment(id: ID!): Boolean!
   removeMaterial(id: ID!): Boolean!
   removeProject(id: ID!): Boolean!
@@ -202,6 +210,10 @@ type Query {
 
   """List all users (paginated + searchable) — Admin only"""
   users(limit: Int! = 20, offset: Int! = 0, search: String): UserPage!
+}
+
+input RefreshTokenInput {
+  refreshToken: String!
 }
 
 type Subscription {

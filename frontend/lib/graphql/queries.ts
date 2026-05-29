@@ -105,6 +105,8 @@ export const LOGIN_MUTATION = `
   mutation Login($input: LoginInput!) {
     login(input: $input) {
       accessToken
+      refreshToken
+      accessTokenExpiresAt
       user {
         id
         name
@@ -112,6 +114,33 @@ export const LOGIN_MUTATION = `
         role
       }
     }
+  }
+`;
+
+// Used by NextAuth's jwt callback when the access token is near expiry.
+// Returns the same shape as login; the new refresh token replaces the old.
+export const REFRESH_TOKENS_MUTATION = `
+  mutation RefreshTokens($input: RefreshTokenInput!) {
+    refreshTokens(input: $input) {
+      accessToken
+      refreshToken
+      accessTokenExpiresAt
+      user {
+        id
+        name
+        email
+        role
+      }
+    }
+  }
+`;
+
+// Best-effort revocation on signOut. Failure is non-fatal — the access
+// token will expire on its own and the refresh token at most lives out
+// its TTL.
+export const LOGOUT_MUTATION = `
+  mutation Logout($input: RefreshTokenInput!) {
+    logout(input: $input)
   }
 `;
 

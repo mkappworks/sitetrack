@@ -30,7 +30,10 @@ import { EquipmentsModule } from './equipments/equipments.module';
         DB_USER: Joi.string().required(),
         DB_PASSWORD: Joi.string().required(),
         JWT_SECRET: Joi.string().min(32).required(),
-        JWT_EXPIRES_IN: Joi.string().default('7d'),
+        // Access tokens: short-lived (15m default). Refresh tokens carry
+        // the long lifetime via the refresh_tokens table.
+        JWT_EXPIRES_IN: Joi.string().default('15m'),
+        REFRESH_TOKEN_TTL_DAYS: Joi.number().integer().min(1).default(30),
         CORS_ORIGINS: Joi.string().default('http://localhost:3000'),
       }),
     }),

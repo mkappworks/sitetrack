@@ -44,6 +44,14 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - `@UseGuards(JwtAuthGuard, RolesGuard)` + `@Roles(...)` on resolver methods. `RolesGuard` short-circuits with ADMIN always passing — so `@Roles(MANAGER)` means "manager or admin," not "manager only."
 - For single-item queries like `user(id)`, default to admin-only. Users see their own data via `me`, not via `user(id: theirOwnId)`.
 
+### Refresh-token rotation
+- Access tokens: short-lived JWT (15-min default via `JWT_EXPIRES_IN`). Refresh tokens: opaque 256-bit hex strings, hashed (sha256) on disk in `refresh_tokens` (30-day default via `REFRESH_TOKEN_TTL_DAYS`). The DB never holds a usable bearer credential — a leak alone can't replay sessions.
+- **Rotation chain via `familyId`**. First issue: `familyId = self.id` (self-reference for the chain head). Each rotation marks the old row `revokedAt = now`, `replacedByTokenId = newRow.id`, and the new row inherits the same `familyId`. The chain head's id IS the family handle; no separate table.
+- **Reuse-detection.** Presenting a token that's already revoked = theft canary (either the legitimate client rotated and the attacker is replaying, or vice-versa). Cannot distinguish; revoke the WHOLE family via `revokeFamily(familyId)` and force re-login. Locked in by spec: `refresh-token.service.spec.ts` `'detects reuse and revokes the entire family'`.
+- **Logout is unauthenticated by design.** Possession of the refresh token IS the auth — if logout required an access token, a refresh token couldn't be revoked once its companion access token had expired. `logout()` always returns `true` so attackers can't probe "is this token valid?"
+- **Backend rate-limits** `login` 5/15min and `refreshTokens` 30/5min per IP via `@nestjs/throttler` + `GqlThrottlerGuard`. Login is tight (brute-force surface); refresh is generous (legitimate sessions refresh ~every 14m with parallel-tab headroom).
+- **No grace window on rotation** — strict invalidation. Multi-tab races are mitigated frontend-side via an in-process Promise dedupe (see `lib/auth.ts:refreshOnce`). Multi-process / multi-server races would still surface as forced re-login; Redis-backed lock is the production fix when scaling out.
+
 ### Testing
 - Unit specs mock repositories + (when relevant) `DataSource`. Tests assert service contracts in isolation — they do NOT go through GraphQL routing or the `ValidationPipe`. That gap means resolver-level bugs (see the search/PaginationArgs incident, `c0812bf`) won't be caught by unit tests; consider an integration test against a real Postgres when wiring resolver-level args.
 - `test/projects.transaction.e2e-spec.ts` is the pattern for integration tests against real Postgres. Uses a separate `sitetrack_test` DB, `synchronize + dropSchema: true`. Covers things mocks can't (real ROLLBACK).
@@ -86,6 +94,13 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - `components/ConfirmDeleteModal.tsx` replaces native `confirm()` everywhere. Focus lands on Cancel on open (Enter doesn't accidentally delete), Escape closes (unless mid-mutation), backdrop click closes (unless mid-mutation). Used by project/equipment/material delete with the same shape per call site.
 - Pair with the mutation's `reset()` in `onCancel` so an error from a prior attempt doesn't carry over into the next modal open.
 
+### NextAuth + refresh-token integration
+- The JWT cookie stores `accessToken`, `refreshToken`, and `accessTokenExpiresAt` (ms since epoch). The `session()` callback exposes ONLY `accessToken` to consumers — refresh stays server-side, never crosses into Client Component code.
+- **Proactive refresh** in the `jwt` callback: when `Date.now() > expiresAt - 60_000`, call the backend's `refreshTokens` mutation, persist the rotated pair on the JWT, and return. This is the primary refresh path; 401-retry on the client is the deferred fallback.
+- **Parallel-tab race dedupe** via in-process `Map<refreshToken, Promise>`. First jwt() call sets the promise; concurrent callers await the same promise and receive the same rotated tokens — avoids triggering backend reuse-detection (which would revoke the whole family) on legitimate same-process races.
+- **Refresh failure** (network down, reuse-detection fired, token expired) → set `token.error = 'RefreshAccessTokenError'` and clear access fields. The `session` callback surfaces `session.error`, and consumers/middleware can react.
+- **signOut event** posts the refresh token to the backend's `logout` mutation as a best-effort revocation. Failure is swallowed — the client cookie is already cleared by NextAuth.
+
 ### Error boundaries (`error.tsx` per top-level route segment)
 - Each top-level route (`/dashboard`, `/projects`, `/equipments`, `/admin`) has an `error.tsx` that delegates to `components/ErrorState.tsx`. Sub-segments inherit the parent's boundary.
 - `error.tsx` must be `'use client'`. It receives `error` (with optional `digest` to correlate with server logs) + `reset` (rerun the segment). Log to `console.error` in `useEffect` so any future remote sink picks it up.
@@ -100,6 +115,7 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - Backend `restore(id)`: calls `repo.restore(id)` then re-fetches with relations (restore itself returns void).
 - Backend `purge(id)`: hard delete. Loads with `withDeleted: true`, throws `BadRequestException` if `deletedAt` is null (refuses to purge an active row — the two-step "soft-delete first, then purge" flow is enforced server-side and locked in by spec). Then `repo.delete(id)`. Materials cascade via the `@ManyToOne` FK `onDelete: 'CASCADE'`.
 - Frontend `/admin/trash` has two sections; each row gets Restore (button) + Purge (red link → ConfirmDeleteModal with stronger copy).
+- **Bulk select**: each row has a checkbox; section headers have "Select all"; selection lives as a `Set<string>` per section in `TrashClient`. A contextual action bar (fixed bottom-center) appears when `totalSelected > 0` offering Restore N / Purge N / Clear. Bulk operations are `Promise.all` over the existing single-id mutations with `.catch(() => null)` per call — same network cost as a real bulk endpoint at this scale (~5-20 rows) and the existing per-row mutation already invalidates the affected caches. NOT a separate backend bulk mutation — frontend loop is enough.
 - `useRestoreProject` / `useRestoreEquipment` invalidate BOTH trash + active-list caches. `usePurgeProject` / `usePurgeEquipment` invalidate the same two caches (the active-list invalidation is a safety net — the row was already absent there).
 - Expose `@DeleteDateColumn` to GraphQL via `@Field({ nullable: true })` when you want the trash UI to display "deleted at" accurately — the column otherwise stays on the entity but invisible to clients.
 
@@ -126,13 +142,12 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 These are deferred decisions, not oversights:
 
 - **Cursor pagination on field resolvers** (`Project.materials`, `User.projects`). At seeded scale they're fine. The trade is "DataLoader batching" vs "per-key cursor" — when a project gets >100 materials, take the trade.
-- **Refresh tokens / `jti` denylist**. README's auth section is honest about this: 7-day access tokens, no revocation. Production-shape addition, not learning-project.
-- **Rate limiting on login**. `@nestjs/throttler` is the right tool when adding it.
-- **GraphQL depth / complexity limits**. No `graphql-depth-limit`-style middleware. A deeply nested query (`project → manager → projects → ...`) is a DoS sink. Apollo accepts `validationRules` — 2-line add when it's time.
+- **Client-side 401 retry interceptor.** Proactive refresh in the `jwt` callback (60s lead) handles the common case. A request slipping through with an about-to-expire token still surfaces to the user as a one-off error rather than a transparent retry. Wire when it becomes a real papercut.
+- **Multi-process refresh-token race dedupe.** In-process `Map` covers same-process races; multi-process / multi-server deployments would still trigger reuse-detection on a benign parallel-tab refresh. Redis-backed lock is the prod fix.
 - **Search indexes** (`pg_trgm` + GIN). At seeded scale the `LIKE '%term%'` is fine; at 10k+ rows you'll need this.
 - **Optimistic mutation pattern extraction**. Five consumers (`useUpdateProjectStatus`, `useAddMaterial`, `useUpdateMaterialStatus`, `useUpdateMaterialQuantity`, `useRemoveMaterial`) follow identical onMutate/onError/onSettled shapes. The threshold for extraction has been crossed; the friction is finding the right generic signature (`detailKey` + `patchFn` + `inverseFn`). Worth a small refactor commit when next mutation joins.
-- **Bulk select / bulk restore / bulk purge**. One row at a time on trash.
 - **Audit log** (who deleted what when). Important when delete becomes a more frequent action; orthogonal to the rest.
+- **Active-sessions UI.** `refresh_tokens` already records `userAgent` + `ipAddress` per login; surface as "your devices" + per-session revoke in `/admin` or `/settings`.
 
 ---
 
@@ -149,3 +164,6 @@ These are deferred decisions, not oversights:
 - Soft delete + Trash + Purge: `@DeleteDateColumn` on entities + `softRemove`/`restore`/`purge` in services + `/admin/trash` page. Commits `6f3578a`, `1f11724`, `07dc4dd`, `4b34fd2`. Purge guards via `BadRequestException` if the row is active — refuses to purge anything that hasn't been soft-deleted first.
 - Reusable destructive modal: `frontend/components/ConfirmDeleteModal.tsx`. Commit `d54eec8`.
 - Error boundaries: `frontend/app/*/error.tsx` + shared `components/ErrorState.tsx`. Commit `5e8c0f0`.
+- Refresh-token rotation + reuse-detection: `backend/src/auth/refresh-token.service.ts` + spec at `refresh-token.service.spec.ts` (11 specs, covers issue / rotate / reuse / chain / revoke). Frontend integration: `frontend/lib/auth.ts:refreshOnce` (Promise dedupe) + `jwt` callback proactive refresh.
+- Trash bulk select: `frontend/app/admin/trash/TrashClient.tsx`. Section-scoped `Set<string>` state, contextual floating action bar, `Promise.all` over single-id mutations.
+- Security hardening: rate limit (login 5/15m, refresh 30/5m) via `backend/src/auth/guards/gql-throttler.guard.ts` + `@Throttle` on auth.resolver; GraphQL `depthLimit(8)` in `backend/src/app.module.ts`; generic createUser error to prevent enumeration in `frontend/lib/actions/user.actions.ts`.
