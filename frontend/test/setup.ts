@@ -14,4 +14,8 @@ vi.mock('next-auth/react', () => ({
     status: 'authenticated',
   }),
   signOut: vi.fn(),
+  signIn: vi.fn(),
+  // getSession is called by gqlFetch's client-side 401 retry; the mock must
+  // expose it or any test touching that path throws "No getSession export".
+  getSession: vi.fn(),
 }));
