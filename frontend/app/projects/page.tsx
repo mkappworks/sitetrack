@@ -1,6 +1,5 @@
-import { getServerSession } from 'next-auth';
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
-import { authOptions } from '../../lib/auth';
+import { requireAuthedSession } from '../../lib/require-session';
 import { getQueryClient } from '../../lib/get-query-client';
 import { projectsQueryOptions } from '../../lib/queries/projects';
 import { CreateProjectButton } from '../../components/CreateProjectButton';
@@ -18,9 +17,9 @@ export default async function ProjectsPage({
   const offset = (page - 1) * PAGE_SIZE;
   const search = q?.trim() || undefined;
 
-  const session = await getServerSession(authOptions);
+  const session = await requireAuthedSession();
   const canCreate =
-    session?.user.role === 'ADMIN' || session?.user.role === 'MANAGER';
+    session.user.role === 'ADMIN' || session.user.role === 'MANAGER';
 
   const queryClient = getQueryClient();
   await queryClient.prefetchQuery(
@@ -28,7 +27,7 @@ export default async function ProjectsPage({
       limit: PAGE_SIZE,
       offset,
       search,
-      token: session?.accessToken,
+      token: session.accessToken,
     }),
   );
 

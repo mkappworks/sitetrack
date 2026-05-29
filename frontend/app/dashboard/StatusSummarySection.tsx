@@ -1,15 +1,20 @@
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getQueryClient } from '../../lib/get-query-client';
 import { projectStatusCountsQueryOptions } from '../../lib/queries/projects';
-import { StatusSummary } from '../../components/StatusSummary';
+import { StatusSummaryClient } from './StatusSummaryClient';
 
-// Async server component: fetches the (cheap) status aggregate independently
-// so it can stream in as soon as it's ready, without waiting on the slower
-// projects list. Wrapped in <Suspense> by the page.
+// Async server component: awaits the (cheap) status aggregate, so this
+// section's own <Suspense> boundary streams independently of the projects
+// list. Then dehydrates the result into a HydrationBoundary so the client
+// child renders from SSR-baked data AND stays subscribed to the cache
+// (reactive to mutations made elsewhere). getQueryClient() is a fresh client
+// per server call, so this payload carries only the status-counts query.
 export async function StatusSummarySection({ token }: { token: string }) {
-  const list = await getQueryClient().fetchQuery(
-    projectStatusCountsQueryOptions({ token }),
+  const queryClient = getQueryClient();
+  await queryClient.prefetchQuery(projectStatusCountsQueryOptions({ token }));
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <StatusSummaryClient />
+    </HydrationBoundary>
   );
-  const counts = Object.fromEntries(list.map((row) => [row.status, row.count]));
-  const total = list.reduce((sum, row) => sum + row.count, 0);
-  return <StatusSummary counts={counts} total={total} />;
 }

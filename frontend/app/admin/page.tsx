@@ -1,8 +1,7 @@
-import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
-import { authOptions } from '../../lib/auth';
+import { requireAuthedSession } from '../../lib/require-session';
 import { getQueryClient } from '../../lib/get-query-client';
 import { usersQueryOptions } from '../../lib/queries/users';
 import { UsersListClient } from './UsersListClient';
@@ -14,8 +13,8 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  const session = await getServerSession(authOptions);
-  if (session?.user.role !== 'ADMIN') redirect('/dashboard');
+  const session = await requireAuthedSession();
+  if (session.user.role !== 'ADMIN') redirect('/dashboard');
 
   const { page: pageParam, q } = await searchParams;
   const page = Math.max(1, parseInt(pageParam ?? '1', 10) || 1);

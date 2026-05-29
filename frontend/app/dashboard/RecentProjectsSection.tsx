@@ -1,34 +1,22 @@
+import { HydrationBoundary, dehydrate } from '@tanstack/react-query';
 import { getQueryClient } from '../../lib/get-query-client';
 import { projectsQueryOptions } from '../../lib/queries/projects';
-import { ProjectCard } from '../../components/ProjectCard';
+import { RecentProjectsClient } from './RecentProjectsClient';
 
-const RECENT_PROJECTS_LIMIT = 12;
+export const RECENT_PROJECTS_LIMIT = 12;
 
-// Async server component: fetches the most-recent projects independently of
-// the status summary, so a slow list never blocks the rest of the dashboard
-// from painting. Owns its own empty state.
+// Async server component under its own <Suspense>: awaits the projects list
+// (so it streams independently of the status summary), then hydrates it into
+// a HydrationBoundary so the client child renders from SSR-baked data and
+// stays subscribed to the cache.
 export async function RecentProjectsSection({ token }: { token: string }) {
-  const page = await getQueryClient().fetchQuery(
+  const queryClient = getQueryClient();
+  await queryClient.prefetchQuery(
     projectsQueryOptions({ limit: RECENT_PROJECTS_LIMIT, offset: 0, token }),
   );
-
-  if (page.items.length === 0) {
-    return (
-      <div className="text-center py-16 text-gray-400">
-        <p className="text-lg font-medium">No projects yet</p>
-        <p className="text-sm mt-1">Create your first project to get started</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="mt-6">
-      <h2 className="text-sm font-medium text-gray-500 mb-3">Recent projects</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {page.items.map((project) => (
-          <ProjectCard key={project.id} project={project} />
-        ))}
-      </div>
-    </div>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <RecentProjectsClient />
+    </HydrationBoundary>
   );
 }
