@@ -5,10 +5,7 @@ import { RecentProjectsClient } from './RecentProjectsClient';
 
 export const RECENT_PROJECTS_LIMIT = 12;
 
-// Async server component under its own <Suspense>: awaits the projects list
-// (so it streams independently of the status summary), then hydrates it into
-// a HydrationBoundary so the client child renders from SSR-baked data and
-// stays subscribed to the cache.
+// Pattern C, mirror of StatusSummarySection (see there for the rationale).
 export async function RecentProjectsSection({ token }: { token: string }) {
   const queryClient = getQueryClient();
   await queryClient.prefetchQuery(

@@ -16,7 +16,6 @@ async function unwrap<T>(
   return r.data;
 }
 
-// Self-service revoke — refreshes the caller's own session list.
 export function useRevokeSession() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -27,7 +26,6 @@ export function useRevokeSession() {
   });
 }
 
-// Admin revoke of a single session for a given user.
 export function useRevokeUserSession(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -38,7 +36,6 @@ export function useRevokeUserSession(userId: string) {
   });
 }
 
-// Admin force-logout — revoke all of a user's sessions.
 export function useRevokeAllUserSessions(userId: string) {
   const queryClient = useQueryClient();
   return useMutation({

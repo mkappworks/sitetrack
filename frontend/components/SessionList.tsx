@@ -29,7 +29,6 @@ function describeDevice(ua: string | null | undefined): string {
 
 interface Props {
   sessions: Session[];
-  // Returns once the revoke completes; the parent owns invalidation.
   onRevoke: (id: string) => void;
   revokingId?: string | null;
   // When true (self-service), the current device shows a badge and its
