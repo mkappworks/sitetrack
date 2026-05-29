@@ -82,9 +82,9 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - `lib/mutations/<domain>.ts` — `useMutation` wrappers around Server Actions. `unwrap()` helper bridges `ActionResult` → throw-on-error so `onError` handles business errors uniformly.
 
 ### Data fetching in pages
-- Server Component: prefetch + dehydrate + `<HydrationBoundary>`. The Client Component inside subscribes via `useQuery` to the same cache key. Optimistic patches flow through to UI without a refresh.
-- For pages that render directly without a Client Component subscriber, use `queryClient.fetchQuery()` (returns data) instead of `prefetchQuery + boundary`. Dashboard does this; project/equipment detail pages use the boundary pattern because they need reactivity to cache mutations.
-- The `staleTime: 60_000` default in `lib/get-query-client.ts` prevents an immediate refetch on the client right after SSR hydration. Don't lower it without thinking through the cache-warm vs freshness trade.
+- Default (list + detail pages): Server Component does `await prefetchQuery` + `dehydrate` + `<HydrationBoundary>`; the Client Component inside subscribes via `useQuery` to the same key. SSR-complete render (no skeleton), and optimistic patches flow to UI without a refresh. Key parity between the page's prefetch and the client's `useQuery` is mandatory or hydration misses and it refetches.
+- Dashboard = **streaming (pattern C)**: each section (`StatusSummarySection`, `RecentProjectsSection`) is an async Server Component under its OWN `<Suspense>` that `await`s its prefetch *inside the section* (so the page never blocks and sections stream independently), then dehydrates into a `<HydrationBoundary>` whose client child subscribes. Gets per-section streaming + SSR-baked data + a reactive cache at once. Decision rule: internal/authed pages → stream; SEO/public content would block the indexable core instead.
+- The `staleTime: 60_000` default in `lib/get-query-client.ts` prevents an immediate refetch right after SSR hydration. The dashboard client reads override `staleTime: 0` (hydrate-then-revalidate) so a change made elsewhere/another tab is reflected on return rather than served 60s-stale. Scope such overrides to the consumer; don't change the global default.
 
 ### Mutations
 - Server Action does the write. `useMutation` wraps it for the UX layer (state machine, optimistic updates, cache invalidation).
@@ -113,9 +113,10 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - **Parallel-tab race dedupe** via in-process `Map<refreshToken, Promise>`. First jwt() call sets the promise; concurrent callers await the same promise and receive the same rotated tokens — avoids triggering backend reuse-detection (which would revoke the whole family) on legitimate same-process races.
 - **Refresh failure** (network down, reuse-detection fired, token expired) → set `token.error = 'RefreshAccessTokenError'` and clear access fields. The `session` callback surfaces `session.error`, and consumers/middleware can react.
 - **signOut event** posts the refresh token to the backend's `logout` mutation as a best-effort revocation. Failure is swallowed — the client cookie is already cleared by NextAuth.
+- **Server-fetched pages gate via `requireAuthedSession()`** (`lib/require-session.ts`), not raw `getServerSession`: it redirects to `/login?expired=1` when the session is missing, errored (`RefreshAccessTokenError`), or token-less. A Server Component can't run the client 401-retry or rotate the cookie, so a dead session would otherwise throw "Unauthorized" into the route error boundary. `/login` clears the dead cookie on `?expired=1`.
 
 ### Error boundaries (`error.tsx` per top-level route segment)
-- Each top-level route (`/dashboard`, `/projects`, `/equipments`, `/admin`) has an `error.tsx` that delegates to `components/ErrorState.tsx`. Sub-segments inherit the parent's boundary.
+- Each top-level route (`/dashboard`, `/projects`, `/equipments`, `/admin`, `/settings`) has an `error.tsx` that delegates to `components/ErrorState.tsx`. Sub-segments inherit the parent's boundary.
 - `error.tsx` must be `'use client'`. It receives `error` (with optional `digest` to correlate with server logs) + `reset` (rerun the segment). Log to `console.error` in `useEffect` so any future remote sink picks it up.
 
 ### Manager-assignment dropdown
