@@ -12,13 +12,16 @@ import { RECENT_PROJECTS_LIMIT } from './RecentProjectsSection';
 // offset) or hydration misses and it refetches.
 export function RecentProjectsClient() {
   const { data: session } = useSession();
-  const { data } = useQuery(
-    projectsQueryOptions({
+  const { data } = useQuery({
+    ...projectsQueryOptions({
       limit: RECENT_PROJECTS_LIMIT,
       offset: 0,
       token: session?.accessToken,
     }),
-  );
+    // See StatusSummaryClient: hydrate-then-revalidate so the dashboard
+    // reflects changes made elsewhere rather than serving the 60s-stale copy.
+    staleTime: 0,
+  });
 
   const items = data?.items ?? [];
 

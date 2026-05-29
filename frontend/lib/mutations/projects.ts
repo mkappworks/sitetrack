@@ -80,7 +80,14 @@ export function useUpdateProjectStatus() {
     mutationFn: (input) => unwrap(updateProjectStatus(input)),
     detailKey: (input) => projectsKeys.detail(input.id),
     patch: (old, input) => ({ ...old, status: input.status }),
-    extraInvalidateKeys: () => [[...projectsKeys.all, 'list']],
+    // Invalidate every dashboard/list consumer of project status:
+    //  - list views (prefix-matches the dashboard grid's {limit,offset} key)
+    //  - the status-counts aggregate the dashboard StatusSummary reads —
+    //    a status change shifts the per-status tally, so it MUST refetch.
+    extraInvalidateKeys: () => [
+      [...projectsKeys.all, 'list'],
+      projectsKeys.statusCounts(),
+    ],
   });
 }
 
