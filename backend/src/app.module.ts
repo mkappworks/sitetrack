@@ -3,7 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { ThrottlerModule } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import depthLimit from 'graphql-depth-limit';
 import Joi from 'joi';
 import { join } from 'path';
 
@@ -64,7 +66,20 @@ import { EquipmentsModule } from './equipments/equipments.module';
       },
       // Pass the raw request into GraphQL context so Guards can read JWT
       context: ({ req, res }: { req: Request; res: Response }) => ({ req, res }),
+      // DoS guard: reject queries deeper than 8 levels. Typical real queries
+      // top out around 3–4 (project → manager → projects → manager); 8 leaves
+      // headroom for legitimate selections while blocking maliciously nested
+      // queries that would force the server to walk DataLoader → ResolveField
+      // recursively until OOM.
+      validationRules: [depthLimit(8)],
     }),
+
+    // --- Throttler: applied per-resolver via GqlThrottlerGuard. Default
+    //     limits here are generous so they don't block legitimate traffic;
+    //     auth.resolver tightens to 5/min on login.
+    ThrottlerModule.forRoot([
+      { name: 'default', ttl: 60_000, limit: 100 },
+    ]),
 
     UsersModule,
     AuthModule,

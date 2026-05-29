@@ -32,8 +32,12 @@ export async function createUser(input: unknown): Promise<CreateUserResult> {
     await client.request(CREATE_USER_MUTATION, { input: parsed.data });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to create user';
+    // Generic error for the duplicate-email case so an attacker who reaches
+    // this endpoint can't enumerate existing users by trial. The trade-off
+    // is admin UX: legitimate admins see a less helpful message, but they
+    // can disambiguate by trying a different email.
     if (msg.includes('already registered')) {
-      return { ok: false, error: 'That email is already in use.' };
+      return { ok: false, error: 'Could not create account. Try a different email.' };
     }
     if (msg.toLowerCase().includes('admin role')) {
       return { ok: false, error: 'ADMIN role cannot be assigned.' };
