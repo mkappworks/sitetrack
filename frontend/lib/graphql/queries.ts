@@ -222,6 +222,7 @@ export const USER_BY_ID_QUERY = `
       name
       email
       role
+      createdAt
     }
   }
 `;

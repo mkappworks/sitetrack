@@ -1,7 +1,6 @@
-import { getServerSession } from 'next-auth';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
-import { authOptions } from '../../../../lib/auth';
+import { requireAuthedSession } from '../../../../lib/require-session';
 import { gqlFetch } from '../../../../lib/graphql/client';
 import { USER_BY_ID_QUERY } from '../../../../lib/graphql/queries';
 import { UserByIdResponseSchema } from '../../../../lib/graphql/schemas';
@@ -12,8 +11,8 @@ export default async function AdminUserPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await getServerSession(authOptions);
-  if (session?.user.role !== 'ADMIN') redirect('/dashboard');
+  const session = await requireAuthedSession();
+  if (session.user.role !== 'ADMIN') redirect('/dashboard');
 
   const { id } = await params;
 
@@ -21,8 +20,13 @@ export default async function AdminUserPage({
   try {
     const raw = await gqlFetch<unknown>(USER_BY_ID_QUERY, { id }, session.accessToken);
     user = UserByIdResponseSchema.parse(raw).user;
-  } catch {
-    notFound();
+  } catch (err) {
+    // Only a genuine "no such user" is a 404. Auth/parse/network errors must
+    // surface to the error boundary instead of masquerading as a missing page
+    // (which is what hid the missing-createdAt schema mismatch here).
+    const msg = err instanceof Error ? err.message : '';
+    if (/not found/i.test(msg)) notFound();
+    throw err;
   }
 
   return (
