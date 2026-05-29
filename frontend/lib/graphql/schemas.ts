@@ -50,6 +50,7 @@ export const ProjectSchema = z.object({
   endDate: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  deletedAt: z.string().nullable().optional(),
   manager: ManagerSchema.nullable().optional(),
   materials: z.array(MaterialSchema).optional(),
   materialCount: z.number().int().nonnegative().optional(),
@@ -69,6 +70,7 @@ export const EquipmentSchema = z.object({
   description: z.string().nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  deletedAt: z.string().nullable().optional(),
   manager: ManagerSchema.nullable().optional(),
 });
 

@@ -45,6 +45,7 @@ export class Equipment {
   @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 
+  @Field({ nullable: true })
   @DeleteDateColumn({ name: "deleted_at" })
   deletedAt?: Date;
 }

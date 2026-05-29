@@ -79,6 +79,9 @@ export class Project {
   @OneToMany(() => Material, (material) => material.project, { cascade: ['soft-remove'] })
   materials?: Material[];
 
+  // Exposed for the trash UI to show *when* a row was deleted. Default find()
+  // queries already exclude soft-removed rows, so this is null for active rows.
+  @Field({ nullable: true })
   @DeleteDateColumn({ name: 'deleted_at' })
   deletedAt?: Date;
 

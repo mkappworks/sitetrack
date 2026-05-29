@@ -63,6 +63,7 @@ scalar DateTime
 
 type Equipment {
   createdAt: DateTime!
+  deletedAt: DateTime
   description: String
   id: ID!
   manager: User
@@ -137,6 +138,7 @@ type Mutation {
 
 type Project {
   createdAt: DateTime!
+  deletedAt: DateTime
   description: String
   endDate: DateTime
   id: ID!

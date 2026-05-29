@@ -88,9 +88,17 @@ function Section<T>({
 function ProjectRow({
   row,
 }: {
-  row: { id: string; name: string; status: string; updatedAt: string; manager?: { name: string } | null };
+  row: {
+    id: string;
+    name: string;
+    status: string;
+    deletedAt?: string | null;
+    updatedAt: string;
+    manager?: { name: string } | null;
+  };
 }) {
   const mutation = useRestoreProject();
+  const when = row.deletedAt ?? row.updatedAt;
   return (
     <li className="py-3 flex items-center justify-between gap-4">
       <div>
@@ -99,7 +107,7 @@ function ProjectRow({
           {row.status.replace('_', ' ')}
           {row.manager?.name && <> · 👤 {row.manager.name}</>}
           {' · deleted '}
-          {new Date(row.updatedAt).toLocaleDateString()}
+          {new Date(when).toLocaleDateString()}
         </p>
       </div>
       <div className="flex items-center gap-3">
@@ -121,16 +129,24 @@ function ProjectRow({
 function EquipmentRow({
   row,
 }: {
-  row: { id: string; name: string; description?: string | null; updatedAt: string; manager?: { name: string } | null };
+  row: {
+    id: string;
+    name: string;
+    description?: string | null;
+    deletedAt?: string | null;
+    updatedAt: string;
+    manager?: { name: string } | null;
+  };
 }) {
   const mutation = useRestoreEquipment();
+  const when = row.deletedAt ?? row.updatedAt;
   return (
     <li className="py-3 flex items-center justify-between gap-4">
       <div>
         <p className="font-medium text-gray-900">{row.name}</p>
         <p className="text-xs text-gray-400 mt-0.5">
           {row.manager?.name && <>👤 {row.manager.name} · </>}
-          deleted {new Date(row.updatedAt).toLocaleDateString()}
+          deleted {new Date(when).toLocaleDateString()}
         </p>
       </div>
       <div className="flex items-center gap-3">

@@ -202,10 +202,13 @@ export const DELETED_PROJECTS_QUERY = `
       id
       name
       status
+      createdAt
       updatedAt
+      deletedAt
       manager {
         id
         name
+        email
       }
     }
   }
@@ -217,10 +220,13 @@ export const DELETED_EQUIPMENTS_QUERY = `
       id
       name
       description
+      createdAt
       updatedAt
+      deletedAt
       manager {
         id
         name
+        email
       }
     }
   }
