@@ -11,7 +11,7 @@ interface Props {
     name: string;
     description?: string | null;
     location?: string | null;
-    manager?: { id: string } | null;
+    manager?: { id: string; name: string } | null;
   };
   onDone: () => void;
 }
@@ -95,6 +95,8 @@ export function EditProjectForm({ project, onDone }: Props) {
             value={field.state.value}
             onChange={field.handleChange}
             onBlur={field.handleBlur}
+            currentManagerId={project.manager?.id ?? ''}
+            currentManagerName={project.manager?.name}
           />
         )}
       </form.Field>

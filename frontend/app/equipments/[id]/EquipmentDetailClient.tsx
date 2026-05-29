@@ -127,7 +127,7 @@ function EditEquipmentForm({
     id: string;
     name: string;
     description?: string | null;
-    manager?: { id: string } | null;
+    manager?: { id: string; name: string } | null;
   };
   onDone: () => void;
 }) {
@@ -193,6 +193,8 @@ function EditEquipmentForm({
             value={field.state.value}
             onChange={field.handleChange}
             onBlur={field.handleBlur}
+            currentManagerId={equipment.manager?.id ?? ''}
+            currentManagerName={equipment.manager?.name}
           />
         )}
       </form.Field>
