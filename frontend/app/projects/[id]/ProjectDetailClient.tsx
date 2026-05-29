@@ -57,7 +57,7 @@ export function ProjectDetailClient({
           </div>
         </div>
 
-        <div className="flex items-start gap-3">
+        <div className="flex items-center gap-2">
           <ProjectLiveUpdates projectId={id} />
           {canEdit && !editing && (
             <button
@@ -70,7 +70,7 @@ export function ProjectDetailClient({
           {canDelete && (
             <button
               onClick={() => setDeleteOpen(true)}
-              className="text-sm text-red-600 hover:text-red-700"
+              className="inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
             >
               Delete
             </button>

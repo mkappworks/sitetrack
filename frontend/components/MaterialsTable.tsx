@@ -50,13 +50,16 @@ export function MaterialsTable({
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+      {/* table-fixed + explicit widths on the non-flexible columns keeps the
+          layout stable when a row enters quantity-edit mode. Without this,
+          the input cell widens and shifts every other column. */}
+      <table className="w-full text-sm table-fixed">
         <thead>
           <tr className="border-b border-gray-100">
             <th className="text-left py-2 pr-4 font-medium text-gray-500">Material</th>
-            <th className="text-right py-2 pr-4 font-medium text-gray-500">Quantity</th>
-            <th className="text-left py-2 pr-4 font-medium text-gray-500">Status</th>
-            {canEdit && <th className="text-right py-2 font-medium text-gray-500 w-32" />}
+            <th className="text-right py-2 pr-4 font-medium text-gray-500 w-40">Quantity</th>
+            <th className="text-left py-2 pr-4 font-medium text-gray-500 w-44">Status</th>
+            {canEdit && <th className="text-right py-2 font-medium text-gray-500 w-40" />}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
