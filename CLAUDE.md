@@ -28,6 +28,12 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - Repository injected via `@InjectRepository`. For transactions, also inject `DataSource` via `@InjectDataSource`.
 - Transactions: `dataSource.transaction(async (manager) => { ... })`. EVERY write inside the callback uses the passed-in `manager`, NOT `this.repo` — using the repo escapes the transaction and breaks rollback. The unit spec `projects.service.spec.ts` asserts `projectsRepo.save` was NEVER called to enforce this.
 - For partial updates, never `Object.assign(entity, input)`. `class-transformer` + `useDefineForClassFields` materializes optional DTO fields as own `undefined` properties, which would clobber unchanged columns. Iterate `Object.entries(input)` and skip `undefined`.
+- **When updating an FK column, clear the loaded relation object first** (`entity.manager = undefined`). If `findOne({ relations: { manager: true } })` loaded the relation, TypeORM's `save()` prefers the relation object's id over the explicit FK column — silently reverting your update. The fix landed in `1f11724` along with the `'' → null` action mapping for unassign semantics.
+- **Soft delete via `@DeleteDateColumn` + `softRemove`** (not `remove`). Default `find()` queries automatically exclude soft-removed rows. For `@OneToMany` children that should follow the parent into the trash, add `cascade: ['soft-remove']` on the relation. Resurrecting rows: `repo.restore(id)`. Mixing `remove()` and `softRemove()` across services is the #1 soft-delete bug.
+
+### Aggregated stats query (don't aggregate client-side)
+- For "how many of each status?" type queries, push the aggregation to Postgres with a `GROUP BY` query, not a client-side `reduce` over a paginated list. The dashboard's `projectStatusCounts` is the canonical example: it returns 5 rows (one per status enum) regardless of total project count and is correct at any scale. Computing the same from `projects.items` lies the moment the list is paginated.
+- Return shape: `[{ status: Enum, count: Int }]`. Object type goes in `<domain>/dto/<x>-count.type.ts` so it stays out of the entity's namespace.
 
 ### DTOs
 - Inputs are `@InputType()`, validated with `class-validator` decorators (`@IsString`, `@IsEnum`, etc.).
@@ -76,8 +82,24 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 - Pagination `?page=N`, search `?q=term`. Server Component reads `searchParams`, passes to Client Component. Client Component drives URL via `router.push(...)` so back/forward + shareable links Just Work.
 - Debounce search input (300ms) before pushing to URL.
 
+### Destructive confirmation modal
+- `components/ConfirmDeleteModal.tsx` replaces native `confirm()` everywhere. Focus lands on Cancel on open (Enter doesn't accidentally delete), Escape closes (unless mid-mutation), backdrop click closes (unless mid-mutation). Used by project/equipment/material delete with the same shape per call site.
+- Pair with the mutation's `reset()` in `onCancel` so an error from a prior attempt doesn't carry over into the next modal open.
+
+### Error boundaries (`error.tsx` per top-level route segment)
+- Each top-level route (`/dashboard`, `/projects`, `/equipments`, `/admin`) has an `error.tsx` that delegates to `components/ErrorState.tsx`. Sub-segments inherit the parent's boundary.
+- `error.tsx` must be `'use client'`. It receives `error` (with optional `digest` to correlate with server logs) + `reset` (rerun the segment). Log to `console.error` in `useEffect` so any future remote sink picks it up.
+
+### Manager-assignment dropdown
+- `components/ManagerSelect.tsx` is the reusable admin-only field. Internally `useSession()` + `useQuery(managersQueryOptions)`; renders `null` for non-admins so callers don't need to gate.
+- All schemas that accept `managerId` declare it as `z.string()` (empty-string allowed) to satisfy TanStack Form's Standard Schema interop. The Server Action then maps `'' → null` (explicit unassign) and a real uuid → uuid. **Don't use `|| undefined` for `managerId`** — that swallows the unassign intent.
+
+### Trash / Restore
+- Backend: `findDeleted()` with `withDeleted: true` + `where: { deletedAt: Not(IsNull()) }`. `restore(id)` calls `repo.restore(id)` then re-fetches with relations (restore itself returns void).
+- Frontend: `/admin/trash` with two sections (projects + equipment). `useRestoreProject` / `useRestoreEquipment` hooks invalidate BOTH the trash cache (row drops out) and the active-list cache (row reappears).
+
 ### Tests
-- `npm test` (Vitest 4.1 + RTL + jsdom). Setup file `test/setup.ts` registers `jest-dom` matchers.
+- `npm test` (Vitest 4.1 + RTL + jsdom). Setup file `test/setup.ts` registers `jest-dom` matchers AND globally stubs `next-auth/react` with a default VIEWER session so any component using `useSession()` (e.g. `ManagerSelect`) renders in jsdom without a real `SessionProvider`. Individual tests can override via `vi.mocked(useSession)`.
 - `test/test-utils.tsx` provides `renderWithQueryClient` (wraps `<QueryClientProvider>` for any component using TanStack Query/Form) and `renderHookWithQueryClient` (same for hook-only tests).
 - For form tests, prefer `getByLabelText(/regex/i)` if the form is properly label-associated; fall back to `getByPlaceholderText` for unique inputs (more robust against label-text changes).
 - Server Actions are `vi.mock`'d so tests don't reach the backend. Assert the action was called with the exact typed input shape — that's the contract.
@@ -99,11 +121,14 @@ Codified patterns this repo uses. Read before adding a new entity, form, mutatio
 These are deferred decisions, not oversights:
 
 - **Cursor pagination on field resolvers** (`Project.materials`, `User.projects`). At seeded scale they're fine. The trade is "DataLoader batching" vs "per-key cursor" — when a project gets >100 materials, take the trade.
-- **Soft delete** (`@DeleteDateColumn`). Would enable the partial-index pattern (`@Index(..., { where: '"deleted_at" IS NULL' })`) and "trash + restore" UX. Not needed yet.
 - **Refresh tokens / `jti` denylist**. README's auth section is honest about this: 7-day access tokens, no revocation. Production-shape addition, not learning-project.
 - **Rate limiting on login**. `@nestjs/throttler` is the right tool when adding it.
-- **Search indexes** (`pg_trgm` + GIN). At 31 rows the `LIKE '%term%'` is fine; at 100k+ rows you'll need this.
-- **Reusing the optimistic mutation pattern via a helper**. Four current consumers is the wrong number — two is too few to abstract, four is starting to feel like it. Wait for the fifth before extracting.
+- **GraphQL depth / complexity limits**. No `graphql-depth-limit`-style middleware. A deeply nested query (`project → manager → projects → ...`) is a DoS sink. Apollo accepts `validationRules` — 2-line add when it's time.
+- **Search indexes** (`pg_trgm` + GIN). At seeded scale the `LIKE '%term%'` is fine; at 10k+ rows you'll need this.
+- **Optimistic mutation pattern extraction**. Five consumers (`useUpdateProjectStatus`, `useAddMaterial`, `useUpdateMaterialStatus`, `useUpdateMaterialQuantity`, `useRemoveMaterial`) follow identical onMutate/onError/onSettled shapes. The threshold for extraction has been crossed; the friction is finding the right generic signature (`detailKey` + `patchFn` + `inverseFn`). Worth a small refactor commit when next mutation joins.
+- **Permanent delete from /admin/trash**. Soft-deleted rows stay forever. A "Purge" action that runs `repo.delete()` (real DELETE) would close the loop — backend mutation + admin-only UI.
+- **Bulk select / bulk restore**. One row at a time on trash.
+- **Audit log** (who deleted what when). Important when delete becomes a more frequent action; orthogonal to the rest.
 
 ---
 
@@ -115,3 +140,8 @@ These are deferred decisions, not oversights:
 - Transaction contract: `backend/src/projects/projects.service.ts:createWithMaterials` + spec at `projects.service.spec.ts`.
 - E2E test pattern: `backend/test/projects.transaction.e2e-spec.ts`.
 - Optimistic mutation pattern: `frontend/lib/mutations/projects.ts:useUpdateProjectStatus` + test at `frontend/lib/mutations/projects.test.ts`.
+- Manager-edit relation-merge fix: `backend/src/projects/projects.service.ts:update` + same in `equipments.service.ts`. Commit `1f11724`.
+- Aggregated stats query: `backend/src/projects/projects.service.ts:statusCounts` + dto + dashboard consumer in `frontend/app/dashboard/page.tsx`. Commit `8f81df3`.
+- Soft delete + Trash: `@DeleteDateColumn` on entities + `softRemove`/`restore` in services + `/admin/trash` page. Commits `6f3578a`, `1f11724`, `07dc4dd`.
+- Reusable destructive modal: `frontend/components/ConfirmDeleteModal.tsx`. Commit `d54eec8`.
+- Error boundaries: `frontend/app/*/error.tsx` + shared `components/ErrorState.tsx`. Commit `5e8c0f0`.
