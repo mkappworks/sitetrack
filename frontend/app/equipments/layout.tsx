@@ -1,11 +1,8 @@
-import { getServerSession } from 'next-auth';
-import { redirect } from 'next/navigation';
-import { authOptions } from '../../lib/auth';
+import { requireAuthedSession } from '../../lib/require-session';
 import { NavSidebar } from '../../components/layout/NavSidebar';
 
 export default async function EquipmentsLayout({ children }: { children: React.ReactNode }) {
-  const session = await getServerSession(authOptions);
-  if (!session) redirect('/login');
+  const session = await requireAuthedSession();
 
   return (
     <div className="flex h-screen bg-gray-50">

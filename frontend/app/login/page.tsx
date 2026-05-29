@@ -1,13 +1,24 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState, FormEvent } from 'react';
+import { signIn, signOut } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Set by requireAuthedSession when it bounces a dead/errored session here.
+  const expired = searchParams.get('expired') === '1';
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // An RSC render couldn't clear the stale cookie, so do it here before the
+    // user re-auths. redirect:false keeps us on the login page (no bounce).
+    if (expired) {
+      void signOut({ redirect: false });
+    }
+  }, [expired]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -40,6 +51,11 @@ export default function LoginPage() {
         </div>
 
         <div className="card">
+          {expired && !error && (
+            <p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded-lg mb-4">
+              Your session expired. Please sign in again.
+            </p>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="email" className="label">Email</label>
@@ -82,5 +98,15 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+// useSearchParams requires a Suspense boundary to keep the rest of the tree
+// static-renderable.
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
