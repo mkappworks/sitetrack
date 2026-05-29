@@ -92,6 +92,14 @@ export const EquipmentByIdResponseSchema = z.object({
   equipment: EquipmentSchema,
 });
 
+export const DeletedProjectsResponseSchema = z.object({
+  deletedProjects: z.array(ProjectSchema),
+});
+
+export const DeletedEquipmentsResponseSchema = z.object({
+  deletedEquipments: z.array(EquipmentSchema),
+});
+
 export const ProjectByIdResponseSchema = z.object({
   project: ProjectSchema,
 });

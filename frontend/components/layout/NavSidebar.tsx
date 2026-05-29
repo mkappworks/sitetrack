@@ -16,6 +16,7 @@ const navItems: NavItem[] = [
   { href: '/projects', label: 'Projects', icon: '🏗' },
   { href: '/equipments', label: 'Equipment', icon: '🛠' },
   { href: '/admin', label: 'Admin', icon: '⚙', adminOnly: true },
+  { href: '/admin/trash', label: 'Trash', icon: '🗑', adminOnly: true },
 ];
 
 interface Props {
@@ -39,7 +40,11 @@ export function NavSidebar({ user }: Props) {
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1">
         {visibleItems.map((item) => {
-          const active = pathname.startsWith(item.href);
+          // Longest-matching-prefix wins so /admin/trash highlights "Trash",
+          // not both "Admin" and "Trash".
+          const active = visibleItems
+            .filter((other) => pathname.startsWith(other.href))
+            .sort((a, b) => b.href.length - a.href.length)[0]?.href === item.href;
           return (
             <Link
               key={item.href}

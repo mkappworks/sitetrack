@@ -196,6 +196,54 @@ export const REMOVE_PROJECT_MUTATION = `
   }
 `;
 
+export const DELETED_PROJECTS_QUERY = `
+  query DeletedProjects {
+    deletedProjects {
+      id
+      name
+      status
+      updatedAt
+      manager {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const DELETED_EQUIPMENTS_QUERY = `
+  query DeletedEquipments {
+    deletedEquipments {
+      id
+      name
+      description
+      updatedAt
+      manager {
+        id
+        name
+      }
+    }
+  }
+`;
+
+export const RESTORE_PROJECT_MUTATION = `
+  mutation RestoreProject($id: ID!) {
+    restoreProject(id: $id) {
+      id
+      name
+    }
+  }
+`;
+
+export const RESTORE_EQUIPMENT_MUTATION = `
+  mutation RestoreEquipment($id: ID!) {
+    restoreEquipment(id: $id) {
+      id
+      name
+    }
+  }
+`;
+
 export const MANAGERS_QUERY = `
   query Managers {
     managers {
