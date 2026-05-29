@@ -4,14 +4,14 @@ Construction project tracker built to learn NestJS, GraphQL, Next.js, Kubernetes
 
 ## Stack
 
-| Layer          | Technology                                     |
-| -------------- | ---------------------------------------------- |
-| Backend        | NestJS + TypeORM + PostgreSQL                  |
-| API            | GraphQL (code-first) + WebSocket subscriptions |
-| Auth           | JWT + Passport + NextAuth.js                   |
-| Frontend       | Next.js 14 App Router + Tailwind CSS           |
-| Infrastructure | Docker + Kubernetes (minikube)                 |
-| CI/CD          | GitHub Actions → GHCR → K8s                    |
+| Layer          | Technology                                                                |
+| -------------- | ------------------------------------------------------------------------- |
+| Backend        | NestJS + TypeORM + PostgreSQL                                             |
+| API            | GraphQL (code-first) + WebSocket subscriptions                            |
+| Auth           | Short-lived JWT access + rotating refresh tokens (Passport + NextAuth.js) |
+| Frontend       | Next.js 16 App Router + TanStack Query + Tailwind CSS                     |
+| Infrastructure | Docker + Kubernetes (minikube)                                            |
+| CI/CD          | GitHub Actions → GHCR → K8s                                               |
 
 ## Quick start (local dev)
 
@@ -49,10 +49,12 @@ Two distinct JWTs exist in the system, created and validated at different layers
 
 ### The two JWTs
 
-| Token                    | Created by                                                                 | Stored where                                                               | Validated by                                                                    | Carries                                                                 |
-| ------------------------ | -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| **Backend access token** | NestJS `AuthService.generateToken()` (`backend/src/auth/auth.service.ts`)  | Only inside NextAuth's session cookie (server-side); never persisted in DB | NestJS `JwtStrategy.validate()` (`backend/src/auth/strategies/jwt.strategy.ts`) | `{ sub: userId, email, role }`, signed with `JWT_SECRET`                |
-| **NextAuth session JWT** | NextAuth itself (`session: { strategy: 'jwt' }` in `frontend/lib/auth.ts`) | Encrypted **HttpOnly cookie** in the browser (`next-auth.session-token`)   | NextAuth on every request via `withAuth` middleware (`frontend/middleware.ts`)  | The backend `accessToken` + role + id, encrypted with `NEXTAUTH_SECRET` |
+| Token                    | Created by                                                                      | Stored where                                                               | Validated by                                                                    | Carries                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Backend access token** | NestJS `AuthService.generateAccessToken()` (`backend/src/auth/auth.service.ts`) | Only inside NextAuth's session cookie (server-side); never persisted in DB | NestJS `JwtStrategy.validate()` (`backend/src/auth/strategies/jwt.strategy.ts`) | `{ sub: userId, email, role, sid }`, signed with `JWT_SECRET`, 15-min expiry      |
+| **NextAuth session JWT** | NextAuth itself (`session: { strategy: 'jwt' }` in `frontend/lib/auth.ts`)      | Encrypted **HttpOnly cookie** in the browser (`next-auth.session-token`)   | NextAuth on every request via `withAuth` middleware (`frontend/middleware.ts`)  | The backend access + refresh tokens + role + id, encrypted with `NEXTAUTH_SECRET` |
+
+(The opaque refresh token is a third credential — not a JWT — stored hashed in the `refresh_tokens` table and rotated on each use; see below.)
 
 ### Step-by-step flow
 
@@ -61,9 +63,9 @@ Two distinct JWTs exist in the system, created and validated at different layers
 1. User submits credentials at `/login` → calls `signIn('credentials', ...)`.
 2. NextAuth invokes the `authorize` callback in `frontend/lib/auth.ts`.
 3. `authorize` calls `gqlFetch(LOGIN_MUTATION, ...)` — a regular GraphQL mutation against the backend.
-4. **Backend creates the JWT** in `AuthService.login()` — `this.jwtService.sign(payload)` using `JWT_SECRET` and `JWT_EXPIRES_IN=7d`.
-5. Backend returns `{ accessToken, user }`.
-6. NextAuth's `jwt` callback stores `accessToken`, `role`, `id` in **its own** JWT.
+4. **Backend mints two credentials** in `AuthService.login()`: a short-lived access JWT (`JWT_EXPIRES_IN=15m`, signed with `JWT_SECRET`) and an opaque 256-bit refresh token. Only the refresh token's sha256 hash is stored (`refresh_tokens` table); the access token is never persisted.
+5. Backend returns `{ accessToken, refreshToken, accessTokenExpiresAt, user }`.
+6. NextAuth's `jwt` callback stores all of these in **its own** JWT.
 7. NextAuth encrypts that JWT with `NEXTAUTH_SECRET` (JWE — not just JWS) and sets it as an HttpOnly cookie. The cookie is never exposed to client JS.
 
 **Subsequent requests (server-side):**
@@ -84,11 +86,23 @@ Two distinct JWTs exist in the system, created and validated at different layers
 
 ### Key questions answered
 
-- **Where is the JWT created?** The backend `AuthService.generateToken()` creates the access JWT, signed with `JWT_SECRET`, on successful login (and only there). NextAuth then creates a _second_, encrypted JWT that wraps it for cookie storage — but NextAuth never creates the access token itself.
+- **Where is the JWT created?** The backend `AuthService.generateAccessToken()` creates the access JWT, signed with `JWT_SECRET`, on login and on each refresh. NextAuth then creates a _second_, encrypted JWT that wraps the credentials for cookie storage — but NextAuth never creates the access token itself.
 - **Where is the JWT validated?** Two checks, both per-request:
   1. **NextAuth middleware** validates the _session cookie_ on protected page navigations.
   2. **NestJS `JwtStrategy`** validates the _backend access token_ on every GraphQL request that hits a `@UseGuards(JwtAuthGuard)` resolver.
-- **Is it saved?** Not in the database. The access token lives only inside the encrypted NextAuth cookie. The backend is **stateless** — it trusts the signature. Logout means deleting the cookie (NextAuth's `signOut`); there is no server-side revocation. If a token leaks it is valid for the full `JWT_EXPIRES_IN` (7 days). For a revocation mechanism you would add a `jti` claim and a denylist table.
+- **Is it saved?** The access token is not — it lives only inside the encrypted NextAuth cookie, and the backend is stateless about it (trusts the signature). The **refresh token is** — its sha256 hash is stored in `refresh_tokens`, which is what makes revocation possible. A leaked access token is valid for at most 15 minutes; a refresh token can be revoked instantly via a DB write.
+
+## Refresh-token rotation, sessions, and audit
+
+The access token is deliberately short-lived (15 min) so a leak is low-impact. Continuity comes from a rotating refresh token (30-day default):
+
+- **Rotation.** Every use of a refresh token issues a new one and revokes the old (`RefreshTokenService.rotate`). The chain shares a `familyId`.
+- **Reuse-detection.** Presenting an already-rotated (revoked) token is the theft signal — the entire family is revoked and the user must log in again (`backend/src/auth/refresh-token.service.ts`, locked in by `refresh-token.service.spec.ts`).
+- **Proactive refresh.** NextAuth's `jwt` callback refreshes ~60s before access-token expiry; a client-side fallback in `gqlFetch` retries once after a 401 with a freshly-rotated token.
+- **Active sessions.** One live token per family = one device. Users see and revoke their own devices at `/settings`; admins manage any user's sessions at `/admin/users/[id]`.
+- **Audit log.** Destructive actions (delete/restore/purge) and auth events (login/logout/refresh-reuse) are recorded in `audit_log`, viewable by admins at `/admin/audit`. Destructive ops write their audit row in the same transaction as the data change.
+
+Rate limiting (`@nestjs/throttler`): login 5/15min, refresh 30/5min per IP. GraphQL queries are depth-limited (8) against nesting-based DoS.
 
 ### Design notes
 
